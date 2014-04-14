@@ -14,39 +14,27 @@
 !     4) can easily uncomment out pseudo-potential for xenon calcs
 !        (search pseudo and the terms should appear)
 !     see Eric So thesis
+      use settings
       implicit none
-      integer, parameter :: mm = 3       ! the number of states to run calcs for  !!!!!!!!!!!!!!!!!!REMEMBER TO CHANGE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       integer, parameter :: nmax = 2000  ! the upper limit of the number of CWDVR radial points
-      integer :: n0(mm)          
-      integer :: k0(mm)         
       double precision :: r1(nmax)
       ! TODO: get rid of the common nonsense!
-      integer :: ntest, meanfield, mplot
-      common /options/ ntest,meanfield,mplot  !options for running program
-      double precision :: xmass
-      common /mass/ xmass      ! mass of ion core
       integer :: nr, nt
       common /array/ nr,nt     ! number of radial and angular points in propgation
       double precision :: pi = dacos(-1.d0)
-      double precision :: dk, z, zacc, ef, dt, finish
-      common /param/ pi,dk,z,zacc,ef,dt,finish !mix of parameters
+      double precision :: dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish !mix of parameters
       double precision :: xlmin, xlmax, dx, eta1
       common /wave/ xlmin,xlmax,dx,eta1 !some parameters for CWDVR
       double precision :: eminr, rabs, rmid
       common /optics/ eminr,rabs,rmid   !parameters for absorbing potential
-      double precision :: dist0, vel0
-      common /teq0/ dist0,vel0          !initial conditions at t=0
-      integer :: ni
-      common /state/ ni                 !n of interest 
+      double precision :: dist0
+      common /teq0/ dist0               !initial conditions at t=0
       double precision :: b
       integer :: nrb, ntb
       common /interp/ b,nrb,ntb         !initial diagonalisation grid parameters 
-      double precision :: z0, v0, beta, ajel, bjel
-      common /jellium/ z0,v0,beta,ajel,bjel !Jellium surface potential parameters
       integer :: nwstep, npstep, nfstep
       common /outputs/ nwstep,npstep,nfstep 
-      double precision :: a10, a1, as, z1, a20, a2, bs, zim, a3, xlam, aa
-      common /chulpot/ a10,a1,as,z1,a20,a2,bs,zim,a3,xlam,aa
       
 !     lots more definitions needed below
       double precision :: rmax
@@ -55,40 +43,13 @@
       integer :: npt
       double precision :: pminr
       double precision :: xmax
-!     chulkov potential parameters for metal surface of interest
-      double precision, parameter :: xhar = 27.2113845d0
 
       
-!
-!ccc  OPTIONS --------------------------------
-      ntest = 0    ! ntest=1 stops calculation after initial diagonalisation, use this option if you want to find the state number first!
-                               ! ntest=0 diagonalises and the propagates the wf      
-      meanfield = 0! meanfield = 1 for meanfield calc, meanfield=0 for constant velocity calc
-      mplot = 0    ! output wavefunction for plotting? (note: output files can get big! don't just plot out wf willy nilly!)
-!---------------------------------------------
+      call loadSettings()
 !ccc  Parameters that need modifying
-!
-!     state parameters
-      ni = 3       ! the principal quantum number of interest
-!     the number of the state from the initial diagonalisation required,
-!     if you don't know, run with ntest = 1 to find the state number first
-!     apparently the number here should be one less than the ntest output
-      n0(1) = 4     !state 1
-      n0(2) = 5     !state 1
-      n0(3) = 6     !state 1
-!      
-!     the parabolic quantum number of the state of interest, required
-!     for finding out the energy shift from infinite distance and thus
-!     the change of velocity from v_infinite
-      k0(1) = -2    !state 1
-      k0(2) =  0    !state 2
-      k0(3) = +2    !state 3
 !
 !     initial conditions
       dist0 = 6.d0*ni**2  ! initial distance to start propagation (where the initial diagonalisation is carried out)
-      vel0 = -3d-4       ! velocity at inifinite distance or the velocity for constant vel calc
-      ef = 0.d0           ! applied electric field +ve for ion-extraction field, -ve for electron-extraction
-      xmass = 1836.d0     ! mass of ion core
 !      
 !     initial diagonalisation grid parameters (regularised Laguerre)
       b = 0.3d0    ! radial scaling parameter
@@ -103,7 +64,6 @@
       nt = 20      !no. of cwdvr angular points, can be greater than ntb if desired
       dk = 3.0d0   !coulomb wave parameter: inc. dk-> 1.more points, 2.smaller sep further out, 3.more even distribution at larger dist
       z = 50.d0    !inc.  z-> smaller the first grid point  
-
       rmax = rmid+rabs  !maximum radial point of the grid
 !
 !     parameters for initial CWDVR grid point search
@@ -121,9 +81,6 @@
       npstep = 500 ! if outputting wf, the time steps between succesive outputs
       npt = nt     ! no. of angular points in outputting the wavefunction, setting more than nt will give interpolated values
 !      
-!     END OF PARAMETERS THAT REQUIRE "ROUTINE" MODIFICATION
-!---------------------------------------------------------------------------------------------------------------------------
-!------------------------------------------------------------------
 !     absorbing potential parameters
       pminr = 2.d0*pi/rabs
       eminr = 0.5d0*pminr**2
@@ -134,34 +91,7 @@
       dx = (xmax-xmin)/nx 
       xlmin = 0
       xlmax = 0
-!
-!     Jellium surface parameters for aluminium surface (see paper by Jennings and Jones)
-      z0 = 0.7d0
-      v0 = -0.574d0
-      beta = 1.25d0
-      ajel = -1.d0-4.d0*v0/beta
-      bjel = -2.d0*(v0/ajel)
-!
-!-----Cu100---------------------      
-      as = 3.415d0
-      a10 = -11.480d0/xhar
-      a1 = 6.1d0/xhar
-      a2 = 3.782d0/xhar
-      bs = 2.539d0
-!      
-!-----Cu111--------------
-!      as = 3.94d0
-!      a10 = -11.895d0/xhar
-!      a1 = 5.14d0/xhar
-!      a2 = 4.3279d0/xhar
-!      bs = 2.9416d0
-!------------------------
-      z1 = 5.d0*pi/(4.d0*bs)
-      a20 = a2-a10-a1
-      a3 = -a20-a2/dsqrt(2.d0)
-      aa = bs*a2*dsin(bs*z1)/a3
-      xlam = 2.d0*aa
-      zim = z1-1.d0/aa*dlog(-aa/(2.d0*a3))
+
 !
 !..........................CALCULATIONS....BEGIN....................................
 !
@@ -169,7 +99,7 @@
 !     r1=array(nmax), nr (not init?), nmax=2000, xmin=8e-3, nx=100000
       call couzero(r1,nr,nmax,xmin,nx)
 
-      if (meanfield.eq.1) then
+      if (meanfield .eqv. .TRUE.) then
          print*,'Calculation with Mean-Field Approx.'
       else
          print*,'Calculation with Constant Velocity Approx'
@@ -181,29 +111,28 @@
 
       write(6,'(A,/,A,/,A,f5.2,4X,A,f5.2,/)')'cwdvr grid parameters:','----------------------','dk = ',dk,'z = ',z
 
-      !write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)')'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ',nt,'dt = ',dt, 'time steps between outputs=',npstep, 'velocity at infinite distance= ',vel0,'E-field=',ef
+      !write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)')'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ',nt,'dt = ',dt, 'time steps between outputs=',npstep, 'velocity at infinite distance= ',v0,'E-field=',field
       
-      call main(r1,nmax,npt,n0,k0,mm)
+      call main(r1,nmax,npt)
       stop
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine main(r1,nmax,npt,n0,k0,mm)
+      subroutine main(r1,nmax,npt)
+      use settings, only : mass, v0, meanfield, mplot, ntest, n0, mm, field
       implicit none
-      integer :: nmax, npt, mm, n0(mm)
+      integer :: nmax, npt
       double precision :: r1(nmax)
       integer :: nr, nt
       common /array/ nr,nt
-      double precision :: pi, dk, z, zacc, ef, dt, finish
-      common /param/ pi,dk,z,zacc,ef,dt,finish
+      double precision :: pi, dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish
       double precision :: xlmin, xlmax, dx, eta1
       common /wave/ xlmin,xlmax,dx,eta1
       double precision :: eminr, rabs, rmid
       common /optics/ eminr,rabs,rmid
-      double precision :: dist0, vel0
-      common /teq0/ dist0,vel0
-      integer :: ntest, meanfield, mplot
-      common /options/ ntest,meanfield,mplot  
+      double precision :: dist0
+      common /teq0/ dist0
       double precision :: b
       integer :: nrb, ntb
       common /interp/ b,nrb,ntb
@@ -212,7 +141,6 @@
       
       
       double precision :: r(nr),a(nr),wt(nr)
-      integer :: k0(mm)
       double precision :: velacc(mm)
       double precision :: btg(nt,nt),cost(nt)
       double precision :: ptg(nt,npt),pcost(npt)
@@ -245,7 +173,7 @@
 !
 !     work out angular FBR function at npt plotting points
 
-      if (mplot.eq.1) then
+      if (mplot .eqv. .TRUE.) then
          call anginterp(npt,ptg,pcost)
       endif
 !
@@ -262,7 +190,7 @@
 !        get intial wavefunction
          if (istat.eq.1) then
             write(6, *)'calling init'
-            call init(btg,ef,psi,hwav,b,r,nr,nt,a,nrb,n0,basis,ntb,velacc,k0,mm) !diagonalise in regularised-laguerre DVR
+            call init(btg,psi,hwav,b,r,nr,nt,a,nrb,basis,ntb,velacc) !diagonalise in regularised-laguerre DVR
 !           hwav contains all the wanted mm eigenvectors from initial diagonalisation            
          else
 !           no need to digaonlise again just project next state in hwav onto CWDVR and propagate 
@@ -276,12 +204,12 @@
          open(100+nw,file=filen1,status='unknown')
          open(200+nw,file=filen2,status='unknown')
          open(400+nw,file=filen4,status='unknown')
-         if (mplot.eq.1) then
+         if (mplot .eqv. .TRUE.) then
             write(filen5,'(A,i4.4)')'wavefunction.',nw
             open(500+nw,file=filen5,status='unknown')
             write(500+nw,*),nr,npt,dt*npstep,rmid
          endif
-         if (meanfield.eq.1) then
+         if (meanfield .eqv. .TRUE.) then
             write(filen3,'(A,i4.4)')'totalforce.',nw
             write(filen6,'(A,i4.4)')'velocity.',nw
             open(300+nw,file=filen3,status='unknown')
@@ -296,10 +224,10 @@
          endif
 !         
 !        propagation
-         if (meanfield.eq.1) then
+         if (meanfield .eqv. .TRUE.) then
             vel = +velacc(istat) !include energy shift acceleration
          else
-            vel = vel0 !assume velocity at infinite distance
+            vel = v0 !assume velocity at infinite distance
          endif
          t0 = t1
          ptold = 10.d0
@@ -314,7 +242,7 @@
          time = istep*dt
          if (istep .gt. 0) then
 !        work out time-depedent potential energy operator
-            call potop (ev2,dt,r,cost,time,dist,ef,zx)
+            call potop (ev2,dt,r,cost,time,dist,zx)
 !        propagate wavefunction with split operator
             call split (psi,etr,ev2,btg)
          
@@ -343,21 +271,21 @@
             write (6,*) time,pt,dist
          endif
 !        plot wavefunction
-         if (mplot.eq.1) then
+         if (mplot .eqv. .TRUE.) then
             plotstep = mod(istep,npstep)
             if (plotstep.eq.0.d0) then
                call plot(psi,r,wt,nw,npt,btg,ptg,pcost,dist)
             endif
          endif
 !
-          if (meanfield.ne.1) then
+          if (meanfield .eqv. .FALSE.) then
              dist = dist + vel*dt
              goto 426
           endif
 !        work out force on ion-core and propgate with velocity verlet
          fstep = mod(istep,nfstep)
          if (fstep.eq.0.d0) then
-            call denergy2(psi,r,dist,ef,zx,dedz)
+            call denergy2(psi,r,dist,zx,dedz)
             if (writstep.eq.0.d0) then
                 write(600+nw,*) dist,vel,time
                 write(300+nw,*) dist,dedz
@@ -534,16 +462,18 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine xoperats(r,etr,cost,btg,rmid,ntest,mrflag,voptic)
+      use settings, only : field
       implicit none
       integer :: nr, nt
       common /array/ nr,nt
-      double precision :: pi, dk, z, zacc, ef, dt, finish
-      common /param/ pi,dk,z,zacc,ef,dt,finish
+      double precision :: pi, dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish
       double precision :: r(nr),tr(nr,nr)
       double precision :: btg(nt,nt),cost(nt),cent(nt)
       double complex etr(nr,nr,nt)
       double precision :: voptic(nr)
-      integer :: mrflag, ii, ntest
+      integer :: mrflag, ii
+      logical :: ntest
       double precision :: rmid
 ! 
 !     radial dvr kinetic operator
@@ -555,7 +485,7 @@
       write(6, *)nt
       call legdvr(nt,cost,btg,cent)
 !
-      if (ntest.ne.1) then
+      if (ntest .eqv. .FALSE.) then
 !        exponentiate kinetic energy operator
          print*,'exponentiating KE operator'
          call expmih(etr,tr,r,cent,dt,voptic)
@@ -612,11 +542,12 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine rtnewt(r,a,wt)
+      use settings, only : field
       implicit none
       integer :: nr, nt
       common /array/ nr,nt
-      double precision :: pi, dk, z, zacc, ef, dt, finish
-      common /param/ pi,dk,z,zacc,ef,dt,finish
+      double precision :: pi, dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish
       double precision :: r(nr),a(nr),wt(nr)
       double precision :: xlmin, xlmax, dx, eta1
       common /wave/ xlmin,xlmax,dx,eta1
@@ -1128,30 +1059,22 @@
       end
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-      function gaus(a,pi,a0,width)
-      implicit none
-      double precision :: a, pi, a0, width
-      double precision :: anorm, ex, gaus
-      anorm=dsqrt(1.d0/(width*dsqrt(pi)))
-      ex=dexp(-((a-a0)**2)/(2.d0*(width**2)))
-      gaus=anorm*ex
-      return
-      end
-
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine potop (ev2,dt,r,cost,time,dist,ef,zx)
+      subroutine potop (ev2,dt,r,cost,time,dist,zx)
+      use settings, only : field
+      use surface, only : potsurf
       implicit none
 !     -------------------------------------------------------------------------
 !     compute the time-dependent potential energy operator
 !     -------------------------------------------------------------------------
-      double precision :: dt, time, dist, ef
+      double precision :: dt, time, dist
       integer :: nr, nt
       common /array/ nr,nt
       double complex :: ev2(nr,nt)
       double precision :: r(nr),cost(nt)
       double precision :: zx(nr,nt)
       integer :: i, j
-      double precision :: dt2, zz, zd, v, potsurf, ar
+      double precision :: dt2, zz, zd, v, ar
 !     exp(-iVdt/2)
       dt2 = 0.5d0*dt
       do i = 1,nr
@@ -1161,7 +1084,7 @@
             if (zd.lt.0.d0) then
                v = potsurf(r(i),zz,dist)
             else
-               v = potsurf(r(i),zz,dist)+ef*zd
+               v = potsurf(r(i),zz,dist)+field*zd
             endif
             ar = -v*dt2
             ev2(i,j) = dcmplx(dcos(ar),dsin(ar))
@@ -1169,72 +1092,7 @@
       enddo
       return
       end
- 
-      double precision function dpotsurf(r,z,d)
-      implicit none
-      double precision :: r, z, d
-      double precision :: z0, v0, beta, ajel, bjel
-      common /jellium/ z0,v0,beta,ajel,bjel
-      double precision :: zz, vee, vep, xl
-      zz = z+d
-!     electron-image electron attraction
-      if (zz.gt.z0) then
-        vee = 0.25d0*(1.d0-dexp(-beta*(zz-z0)))/(zz-z0)**2 - 0.25d0*beta*dexp(-beta*(zz-z0))/(zz-z0)
-      else
-        vee = -v0/(ajel*dexp(bjel*(zz-z0))+1.d0)**2 * ajel*bjel*dexp(bjel*(zz-z0))
-      endif
-      if (zz.gt.0) then
-        xl = dsqrt(r**2 + 4.d0*d**2 + 4.d0*d*z)
-        vep = (-4.d0*d-2.d0*z)/xl**3
-      else
-        vep = 0.d0
-      endif
-      dpotsurf = vee+vep
-      return
-      end
 
-      double precision function potsurf(r,z,d)
-      implicit none
-      double precision :: r, z, d
-      double precision :: z0, v0, beta, ajel, bjel
-      common /jellium/ z0,v0,beta,ajel,bjel
-      double precision :: a10, a1, as, z1, a20, a2, bs, zim, a3, xlam, aa
-      common /chulpot/ a10,a1,as,z1,a20,a2,bs,zim,a3,xlam,aa
-      double precision :: zz, y2, vee, xl, dabs, vep
-!     -------------------------------------------------------------------------
-!     compute the surface potential at distance d from surface (surface is at z=-d)
-!     -------------------------------------------------------------------------
-      zz = z+d
-      y2 = (r**2-z**2)
-!     electron-image electron attraction for Chulkov pseudopotentials
-!      pi = dacos(-1.d0)
-!      if (zz.le.0.d0) then
-!         vee = a10 + a1*dcos(2.d0*pi/as*(zz))
-!      elseif ((zz.gt.0.d0).and.(zz.lt.z1)) then
-!         vee = -a20 + a2*dcos(bs*(zz))
-!      elseif ((zz.ge.z1).and.(zz.le.zim)) then
-!         vee = a3*dexp(-aa*(zz-z1))
-!      elseif (zz.gt.zim) then
-!         vee = (dexp(-xlam*(zz-zim))-1.d0)/(4.d0*(zz-zim))
-!      endif
-!      
-!     electron-image electron attraction
-      if (zz.gt.z0) then
-       vee = 0.25d0*(-1.d0+dexp(-beta*(zz-z0)))/(zz-z0)
-      else
-       vee = v0/(ajel*dexp(bjel*(zz-z0))+1.d0)
-      endif
-!     electron-image proton repulsion
-      xl = dsqrt(y2+(d+dabs(zz))**2)
-!      if (zz.gt.0.d0) then
-         vep = +1.d0/xl
-!      else
-!         vep = +1.d0/dsqrt(d**2+y2)
-!      endif
-      potsurf = vee+vep
-      return
-      end
- 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine split (psi,etr,ev2,btg)
       implicit none
@@ -1301,27 +1159,26 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine fion (psi,dist,dedz,dft,vel,zx,ionstep,dedzo)
+      use settings, only : mass, v0
       implicit none
-      double precision :: dist, dedz, dft, vel, dedzo
+      double precision :: dist, dedz, dft, vel, dedzo, vel0
       integer :: ionstep
       integer :: nr, nt, n
       common /array/ nr,nt
-      double precision :: xmass
-      common /mass/ xmass
-      double precision :: dist0, vel0
-      common /teq0/ dist0,vel0
+      double precision :: dist0
+      common /teq0/ dist0
       double complex :: psi(nr*nt)
       double precision :: zx(nr*nt)
       integer :: i
-      double precision :: v0, dsin, dcos, arg, v1, v5
+      double precision :: dsin, dcos, arg, v1, v5
       
-      v0 = vel
+      vel0 = vel
       if (ionstep.ne.0) then
-        v1 = v0 + 0.5d0*dedzo*dft/xmass
+        v1 = vel0 + 0.5d0*dedzo*dft/mass
       else
-        v1 = v0
+        v1 = vel0
       endif
-      v5 = v1 + 0.5d0*dedz*dft/xmass
+      v5 = v1 + 0.5d0*dedz*dft/mass
       vel = v5
 !
       n = nr*nt
@@ -1335,16 +1192,18 @@
       end
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-      subroutine denergy2(psi,r,dist,ef,zx,dedz)
+      subroutine denergy2(psi,r,dist,zx,dedz)
+      use settings, only : field
+      use surface, only : dpotsurf
       implicit none
-      double precision :: dist, ef, dedz
+      double precision :: dist, dedz
       integer :: nr, nt
       common /array/ nr,nt
       double complex :: psi(nr, nt)
       double precision :: r(nr)
       double precision :: zx(nr,nt)
       
-      double precision :: vint, ev, dpotsurf, zd, zz
+      double precision :: vint, ev, zd, zz
       integer :: i, j
       dedz = 0.d0
 
@@ -1356,12 +1215,12 @@
             if (zd.lt.0.d0) then
                ev = dpotsurf(r(j),zz,dist)
             else
-               ev = dpotsurf(r(j),zz,dist) + ef
+               ev = dpotsurf(r(j),zz,dist) + field
             endif
             vint =  vint + dble(dconjg(psi(j,i))*ev*psi(j,i))
         enddo
       enddo
-      dedz =  -(-ef +0.25d0/(dist**2) + vint) 
+      dedz =  -(-field +0.25d0/(dist**2) + vint) 
       return
       end
 
@@ -1414,18 +1273,19 @@
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      double precision function en(xn,xm,xk,f)
+      double precision function en(xn,xm,xk)
+      use settings, only : field
       implicit none
-      double precision :: xn, xm, xk, f
+      double precision :: xn, xm, xk
       double precision :: a, b, c, d, e, g, h, p
       a=-1.d0/(2.d0*(xn**2))
-      b=3.d0*f*xn*xk/2.d0
-      c=-(f**2)*(xn**4)*(17.d0*(xn**2)-3.d0*(xk**2)-9.d0*(xm**2)+19.d0)/16.d0
-      d=(3.d0/32.d0)*(xn**7)*xk*(23.d0*(xn**2)-(xk**2)+11.d0*(xm**2)+39.d0)*(f**3)
-      e=-(xn**10)*(f**4)*(5487.d0*(xn**4)+35182.d0*(xn**2)-1134.d0*(xm**2)*(xk**2)+1806.d0*(xn**2)*(xk**2))/1024.d0
-      g=-(xn**10)*(f**4)*(-3402.d0*(xn**2)*(xm**2)+147.d0*(xk**4)-549.d0*(xm**4)+5754.d0*(xk**2)-8622.d0*(xm**2)+16211.d0)/1024.d0
-      h=3.d0*(xn**13)*xk*(f**5)*(10563.d0*(xn**4)+90708.d0*(xn**2)+220.d0*(xm**2)*(xk**2)+98.d0*(xn**2)*(xk**2))/1024.d0
-      p=3.d0*(xn**13)*xk*(f**5)*(772.d0*(xn**2)*(xm**2)-21.d0*(xk**4)+725.d0*(xm**4)+780.d0*(xk**2)+830.d0*(xm**2)+59293.d0)/1024.d0
+      b=3.d0*field*xn*xk/2.d0
+      c=-(field**2)*(xn**4)*(17.d0*(xn**2)-3.d0*(xk**2)-9.d0*(xm**2)+19.d0)/16.d0
+      d=(3.d0/32.d0)*(xn**7)*xk*(23.d0*(xn**2)-(xk**2)+11.d0*(xm**2)+39.d0)*(field*3)
+      e=-(xn**10)*(field**4)*(5487.d0*(xn**4)+35182.d0*(xn**2)-1134.d0*(xm**2)*(xk**2)+1806.d0*(xn**2)*(xk**2))/1024.d0
+      g=-(xn**10)*(field**4)*(-3402.d0*(xn**2)*(xm**2)+147.d0*(xk**4)-549.d0*(xm**4)+5754.d0*(xk**2)-8622.d0*(xm**2)+16211.d0)/1024.d0
+      h=3.d0*(xn**13)*xk*(field**5)*(10563.d0*(xn**4)+90708.d0*(xn**2)+220.d0*(xm**2)*(xk**2)+98.d0*(xn**2)*(xk**2))/1024.d0
+      p=3.d0*(xn**13)*xk*(field**5)*(772.d0*(xn**2)*(xm**2)-21.d0*(xk**4)+725.d0*(xm**4)+780.d0*(xk**2)+830.d0*(xm**2)+59293.d0)/1024.d0
       en=a+b+c+d+e+g+h+p
       return
       end
@@ -1469,7 +1329,9 @@
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine init(pbtg,ef,psi,hwav,b,x,nx,ntcw,a,nr,n0,basis,nt,velacc,k0,mm)
+      subroutine init(pbtg,psi,hwav,b,x,nx,ntcw,a,nr,basis,nt,velacc)
+      use settings, only : v0, ntest, ni, n0, k0, mm, field
+      use surface, only : potsurf
       implicit none
 !--------------------------------------------------------------------------
 !     intitial diagonalisation on regularised Laguerre DVR to find
@@ -1477,13 +1339,11 @@
 !     NB x(nx) are the cwdvr grid points and r(nr) are the laguerre points
 !     cost(nt) are the ang points for initial diagonalisation and cost(ntcw) and those for propagation
 !--------------------------------------------------------------------------
-      integer :: nx, ntcw, nr,  nt, mm, n0(mm)
-      double precision :: ef, b
-      integer :: ni, ntest, meanfield, mplot
-      common /state/ ni
-      common /options/ ntest,meanfield,mplot
-      double precision :: dist0, vel0 
-      common /teq0/ dist0,vel0
+      
+      integer :: nx, ntcw, nr,  nt
+      double precision :: b
+      double precision :: dist0 
+      common /teq0/ dist0
       double precision :: btg(nt,nt),cost(nt),cent(nt)
       double precision :: pbtg(ntcw,ntcw),ptg(nt,ntcw)
       double precision :: r(nr),hr(nr,nr)
@@ -1492,11 +1352,10 @@
       double precision :: vt(nt,nt),ht(nt,nt,nr),phi(nx,nt)
       double precision :: p(nx,ntcw)
       double precision :: trans(nx),x(nx),a(nx),basis(nx,nr)
-      integer ::  k0(mm)
       double precision :: hwav(nr*nt,mm)
       double complex psi(nx,ntcw)
       double precision :: velacc(mm)
-      double precision :: aintegral, sa, denn, diff, enn, ei, zd, zz, r0, r1, potsurf, en
+      double precision :: aintegral, sa, denn, diff, enn, ei, zd, zz, r0, r1, en
       integer :: ic, jc, nwav, istat, ndd, ierr, jt, jr, it, ir, i, j, k, n
 !
       allocate(h(nr*nt, nr*nt))
@@ -1555,7 +1414,7 @@
             if (zd.lt.0.d0) then
                ht(j,j,i) = potsurf(r(i),zz,dist0)
             else
-               ht(j,j,i) = ef*zd+potsurf(r(i),zz,dist0)
+               ht(j,j,i) = field*zd+potsurf(r(i),zz,dist0)
             endif
          enddo
       enddo
@@ -1603,7 +1462,7 @@
 !      stop
 
       
-      if (ntest.eq.1) then
+      if (ntest .eqv. .TRUE.) then
          enn = -0.5d0/dble(ni)**2 + 0.25d0/dist0
          do i = 1,n
             ei = e(i)!*4.35974417d-18/1.60218d-19
@@ -1624,9 +1483,9 @@
             hwav(j,istat) = h(j,nwav)
          enddo
 !    work out energy shift from infinite distance
-         denn = (e(nwav)-ef*dist0-0.25d0/dist0)-en(dble(ni),0.d0,dble(k0(istat)),ef)
+         denn = (e(nwav)-field*dist0-0.25d0/dist0)-en(dble(ni),0.d0,dble(k0(istat)))
 !    work out corresponding velocity change from infinite distance
-         velacc(istat) = -dsqrt(vel0**2-denn*2.d0/1836.d0)
+         velacc(istat) = -dsqrt(v0**2-denn*2.d0/1836.d0)
       enddo
 !      
 !     Tranform Eigenvector to CWDVR basis:
