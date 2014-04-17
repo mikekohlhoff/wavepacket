@@ -6,9 +6,7 @@ module settings
   integer, allocatable, save :: k0(:)
   logical, save :: ntest, mplot, meanfield ! options
   double precision, save :: mass
-  double precision, save :: field, v0, dist0, min_pop, timestep
-  integer, save :: nr, nt, nx
-  double precision, save :: dk, z, zacc, xmin
+  double precision, save :: field, v0
 
   contains
     subroutine loadSettings()
@@ -28,24 +26,9 @@ module settings
       
       mass = 1836.d0    ! mass of ion core
       
-      min_pop = 1e-2    ! stop when population less than 'min_pop'
-      timestep = 1.0d0   ! timestep
-      
       field = 0.d0      ! electric field
       v0 = -3d-4        ! velocity at inifinite distance or the velocity for constant vel calc
       
-      dist0 = 6.d0*ni**2  ! initial distance to start propagation (where the initial diagonalisation is carried out)
-      
-!     CWDVR parameters (the propagation grid)
-      nt = 20      !no. of cwdvr angular points, can be greater than ntb if desired
-      dk = 3.0d0   !coulomb wave parameter: inc. dk-> 1.more points, 2.smaller sep further out, 3.more even distribution at larger dist
-      z = 50.d0    !inc.  z-> smaller the first grid point  
-
-!     parameters for initial CWDVR grid point search
-      zacc = 1.d-8 ! newton-raphson accuracy
-      xmin = 8.d-3 ! Lower bound of 1st zero
-      nx = 100000  ! Number of grid points to scan for zero, may need to increase this if using high dk parameter    
-
       
     end subroutine loadSettings
   
