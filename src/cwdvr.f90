@@ -14,92 +14,50 @@
 !     4) can easily uncomment out pseudo-potential for xenon calcs
 !        (search pseudo and the terms should appear)
 !     see Eric So thesis
-      use settings
+      use settings, only : loadSettings
+      implicit none
+      call loadSettings()
+      call main()
+      
+      stop
+      end
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine main()
+      use settings, only : v0, MEANFIELD, MPLOT, n0, nStates, field, dist0, b, min_pop, timestep, nr, nt, ni, dk, npt, z, rmid, npstep, nfstep, nwstep, nrb, ntb, dp
+      use helpers, only : pnorm
       implicit none
       integer, parameter :: nmax = 2000  ! the upper limit of the number of CWDVR radial points
-      double precision :: r1(nmax)
-      ! TODO: get rid of the common nonsense!
-      integer :: nr, nt
-      common /array/ nr,nt     ! number of radial and angular points in propgation
-      double precision :: pi = dacos(-1.d0)
-      double precision :: dk, z, zacc, dt, finish
-      common /param/ pi,dk,z,zacc,dt,finish !mix of parameters
-      double precision :: xlmin, xlmax, dx, eta1
-      common /wave/ xlmin,xlmax,dx,eta1 !some parameters for CWDVR
-      double precision :: eminr, rabs, rmid
-      common /optics/ eminr,rabs,rmid   !parameters for absorbing potential
-      double precision :: dist0
-      common /teq0/ dist0               !initial conditions at t=0
-      double precision :: b
-      integer :: nrb, ntb
-      common /interp/ b,nrb,ntb         !initial diagonalisation grid parameters 
-      integer :: nwstep, npstep, nfstep
-      common /outputs/ nwstep,npstep,nfstep 
-      
-!     lots more definitions needed below
-      double precision :: rmax
-      double precision :: xmin
-      integer :: nx
-      integer :: npt
-      double precision :: pminr
-      double precision :: xmax
+      real(dp) :: r1(nmax)
 
+      real(dp) :: r(nr),a(nr),wt(nr)
+      real(dp) :: velacc(nStates)
+      real(dp) :: btg(nt,nt),cost(nt)
+      real(dp) :: ptg(nt,npt),pcost(npt)
+      real(dp) :: hwav(nrb*ntb,nStates)
+      real(dp), dimension(:, :), allocatable :: basis
+      complex(dp) psi(nr,nt),etr(nr,nr,nt),ev2(nr,nt)
+      character(LEN=17) filen1
+      character(LEN=18) filen2
+      character(LEN=15) filen3
+      character(LEN=8) filen4
+      character(LEN=13) filen6
+      character(LEN=17) filen5
+      real(dp) :: zx(nr,nt)
+      real(dp) :: voptic(nr)
+      real(dp) :: t0, t1, dsecnd
+      integer :: i, j, mrflag, istat, nw, istep, ionstep, writstep, plotstep, fstep
+      real(dp) :: vel, ptold, dist, dedz, dft, p0, time, pt
+      real(dp) :: fg2, fl2, dedzo
       
-      call loadSettings()
-!ccc  Parameters that need modifying
-!
-!     initial conditions
-      dist0 = 6.d0*ni**2  ! initial distance to start propagation (where the initial diagonalisation is carried out)
-!      
-!     initial diagonalisation grid parameters (regularised Laguerre)
-      b = 0.3d0    ! radial scaling parameter
-      nrb = 40     ! no. of radial points for initial diagonalisation
-      ntb = 20     ! no. of angular points for initial diagonalisation
-!      
-!     absorbing potential parameters
-      rmid = dist0 !absorbing boundary position on radial grid, AND where flux detector plane sits, it is recommended to set it to dist0
-      rabs = 30.d0 !width of absorbing boundary, needs to be wide enough to absorb the lowest energy components
-!
-!     CWDVR parameters (the propagation grid)
-      nt = 20      !no. of cwdvr angular points, can be greater than ntb if desired
-      dk = 3.0d0   !coulomb wave parameter: inc. dk-> 1.more points, 2.smaller sep further out, 3.more even distribution at larger dist
-      z = 50.d0    !inc.  z-> smaller the first grid point  
-      rmax = rmid+rabs  !maximum radial point of the grid
-!
-!     parameters for initial CWDVR grid point search
-      zacc = 1.d-8 ! newton-raphson accuracy
-      xmin = 8.d-3 ! Lower bound of 1st zero
-      nx = 100000  ! Number of grid points to scan for zero, may need to increase this if using high dk parameter    
-!
-!     propagation parameter
-      dt = 1.0d0   ! timestep
-      finish = 1e-2! stop when population less than 'finish'
-!
-!     outputting parameters
-      nwstep = 100 ! number of time steps (+1)  between each output
-      nfstep = 1   ! number of time steps (+1) between evaluation of meanfield
-      npstep = 500 ! if outputting wf, the time steps between succesive outputs
-      npt = nt     ! no. of angular points in outputting the wavefunction, setting more than nt will give interpolated values
-!      
-!     absorbing potential parameters
-      pminr = 2.d0*pi/rabs
-      eminr = 0.5d0*pminr**2
-!
-!     CWDVR parameters and parameters for scanning CWDVR points
-      eta1 = -z/dk
-      xmax = rmax*dk      
-      dx = (xmax-xmin)/nx 
-      xlmin = 0
-      xlmax = 0
+      allocate(basis(nr,nrb))
+!     pre stuff that used not to be in main
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!
-!..........................CALCULATIONS....BEGIN....................................
-!
 !     get CWDVR zeros roughly, by scanning r and finding when the sign of the coulomb function changes
-!     r1=array(nmax), nr (not init?), nmax=2000, xmin=8e-3, nx=100000
-      call couzero(r1,nr,nmax,xmin,nx)
+      call couzero(r1,nr,nmax)
 
-      if (meanfield .eqv. .TRUE.) then
+      if (MEANFIELD .eqv. .TRUE.) then
          print*,'Calculation with Mean-Field Approx.'
       else
          print*,'Calculation with Constant Velocity Approx'
@@ -107,58 +65,14 @@
       print*,'P A R A M E T E R S :'
       print*,'====================='
       write(6,'(A,i5.2,/)')'hydrogen n = ',ni
-      !write(6,'(A,/,A,/,A,i5.2,4X,A,f5.2,4X,A,i5.2,/)')'initial diagonalisation with lag DVR:','-------------------------------------','nr = ',nrb,'b = ',b,'nt = ',ntb
+      write(6,'(A,/,A,/,A,i5.2,4X,A,f5.2,4X,A,i5.2,/)')'initial diagonalisation with lag DVR:','-------------------------------------','nr = ',nrb,'b = ',b,'nt = ',ntb
 
       write(6,'(A,/,A,/,A,f5.2,4X,A,f5.2,/)')'cwdvr grid parameters:','----------------------','dk = ',dk,'z = ',z
 
-      !write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)')'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ',nt,'dt = ',dt, 'time steps between outputs=',npstep, 'velocity at infinite distance= ',v0,'E-field=',field
+      write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)')'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ',nt,'dt = ',timestep, 'time steps between outputs=',npstep, 'velocity at infinite distance= ',v0,'E-field=',field
       
-      call main(r1,nmax,npt)
-      stop
-      end
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine main(r1,nmax,npt)
-      use settings, only : mass, v0, meanfield, mplot, ntest, n0, mm, field
-      implicit none
-      integer :: nmax, npt
-      double precision :: r1(nmax)
-      integer :: nr, nt
-      common /array/ nr,nt
-      double precision :: pi, dk, z, zacc, dt, finish
-      common /param/ pi,dk,z,zacc,dt,finish
-      double precision :: xlmin, xlmax, dx, eta1
-      common /wave/ xlmin,xlmax,dx,eta1
-      double precision :: eminr, rabs, rmid
-      common /optics/ eminr,rabs,rmid
-      double precision :: dist0
-      common /teq0/ dist0
-      double precision :: b
-      integer :: nrb, ntb
-      common /interp/ b,nrb,ntb
-      integer :: nwstep, npstep, nfstep
-      common /outputs/ nwstep,npstep,nfstep 
-      
-      
-      double precision :: r(nr),a(nr),wt(nr)
-      double precision :: velacc(mm)
-      double precision :: btg(nt,nt),cost(nt)
-      double precision :: ptg(nt,npt),pcost(npt)
-      double precision :: hwav(nrb*ntb,mm),basis(nr,nrb)
-      double complex psi(nr,nt),etr(nr,nr,nt),ev2(nr,nt)
-      character*17 filen1
-      character*18 filen2
-      character*15 filen3
-      character*8 filen4
-      character*13 filen6
-      character*17 filen5
-      double precision :: zx(nr,nt)
-      double precision :: voptic(nr)
-      double precision :: t0, t1, dsecnd
-      integer :: i, j, mrflag, istat, nw, istep, ionstep, writstep, plotstep, fstep
-      double precision :: vel, ptold, dist, dedz, dft, p0, time, pt, pnorm
-      double precision :: fg2, fl2, dedzo
-      
 !     setup
       
       t0 = dsecnd()           !clear timer
@@ -169,11 +83,11 @@
       call rtnewt(r,a,wt)
 ! 
 !     work out operators, exponentiate Kinetic operator, work out flux operator
-      call xoperats(r,etr,cost,btg,rmid,ntest,mrflag,voptic)
+      call xoperats(r,etr,cost,btg,mrflag,voptic)
 !
 !     work out angular FBR function at npt plotting points
 
-      if (mplot .eqv. .TRUE.) then
+      if (MPLOT .eqv. .TRUE.) then
          call anginterp(npt,ptg,pcost)
       endif
 !
@@ -185,16 +99,16 @@
       enddo
 !
 !     set over states to propagate
-      do istat = 1,mm
+      do istat = 1,nStates
          nw = n0(istat)
 !        get intial wavefunction
          if (istat.eq.1) then
             write(6, *)'calling init'
-            call init(btg,psi,hwav,b,r,nr,nt,a,nrb,basis,ntb,velacc) !diagonalise in regularised-laguerre DVR
+            call init(btg,psi,hwav,r,nr,nt,a,nrb,basis,ntb,velacc) !diagonalise in regularised-laguerre DVR
 !           hwav contains all the wanted mm eigenvectors from initial diagonalisation            
          else
 !           no need to digaonlise again just project next state in hwav onto CWDVR and propagate 
-            call wavfunc(btg,psi,hwav,b,nr,nt,a,nrb,basis,ntb,istat,mm)
+            call wavfunc(btg,psi,hwav,nr,nt,a,nrb,basis,ntb,istat,nStates)
          endif
 !         
 !     open files for output
@@ -204,12 +118,12 @@
          open(100+nw,file=filen1,status='unknown')
          open(200+nw,file=filen2,status='unknown')
          open(400+nw,file=filen4,status='unknown')
-         if (mplot .eqv. .TRUE.) then
+         if (MPLOT .eqv. .TRUE.) then
             write(filen5,'(A,i4.4)')'wavefunction.',nw
             open(500+nw,file=filen5,status='unknown')
-            write(500+nw,*),nr,npt,dt*npstep,rmid
+            write(500+nw,*) nr,npt,timestep*npstep,rmid
          endif
-         if (meanfield .eqv. .TRUE.) then
+         if (MEANFIELD .eqv. .TRUE.) then
             write(filen3,'(A,i4.4)')'totalforce.',nw
             write(filen6,'(A,i4.4)')'velocity.',nw
             open(300+nw,file=filen3,status='unknown')
@@ -224,7 +138,7 @@
          endif
 !         
 !        propagation
-         if (meanfield .eqv. .TRUE.) then
+         if (MEANFIELD .eqv. .TRUE.) then
             vel = +velacc(istat) !include energy shift acceleration
          else
             vel = v0 !assume velocity at infinite distance
@@ -235,22 +149,15 @@
          dist = dist0
          ionstep = 0
          dedz = 0.d0
-         dft = nfstep*dt
+         dft = nfstep*timestep
          p0 = 1.d0
-         write(6, *) ev2(1, 1), ev2(2, 3), ev2(6, 7)
 1        istep = istep+1
-         time = istep*dt
+         time = istep*timestep
          if (istep .gt. 0) then
 !        work out time-depedent potential energy operator
-            call potop (ev2,dt,r,cost,time,dist,zx)
+            call potop (ev2,r,dist,zx)
 !        propagate wavefunction with split operator
             call split (psi,etr,ev2,btg)
-         
-!          write(6, *) 'loop starting'
-!          write(6, *) psi(1, 1), psi(3, 4), psi(5, 4)
-!          if (istep .gt. 5) then
-!            stop
-!          endif
         endif
 !
 !        work out population on grid at time t
@@ -271,15 +178,15 @@
             write (6,*) time,pt,dist
          endif
 !        plot wavefunction
-         if (mplot .eqv. .TRUE.) then
+         if (MPLOT .eqv. .TRUE.) then
             plotstep = mod(istep,npstep)
             if (plotstep.eq.0.d0) then
                call plot(psi,r,wt,nw,npt,btg,ptg,pcost,dist)
             endif
          endif
 !
-          if (meanfield .eqv. .FALSE.) then
-             dist = dist + vel*dt
+          if (MEANFIELD .eqv. .FALSE.) then
+             dist = dist + vel*timestep
              goto 426
           endif
 !        work out force on ion-core and propgate with velocity verlet
@@ -290,22 +197,23 @@
                 write(600+nw,*) dist,vel,time
                 write(300+nw,*) dist,dedz
             endif
-            call fion (psi,dist,dedz,dft,vel,zx,ionstep,dedzo)
+            call fion (psi,dedz,dft,vel,zx,ionstep,dedzo)
             ionstep = 1
          endif
 !
-         dist = dist + vel*dt -0.5d0*dedz*dt**2
+         dist = dist + vel*timestep -0.5d0*dedz*timestep**2
+         
 !         
 !        Stop if ion goes backwards too far!
-426      if (dist.gt.(dist0+50.d0)) stop 'reversed too far!'
+426      if (dist > (dist0 + 50.d0)) stop 'reversed too far!'
 !
 !        WARN if wavepacket grows
-         if (pt-ptold.gt.1.d-8) print*, 'growing!'
+         if (pt - ptold > 1.d-8) print*, 'growing!'
          ptold = pt
 !
 !        stop when distance from surface =0
-         if (dist.lt.0.d0) go to 847
-         if (pt .gt. finish) go to 1
+         if (dist < 0.d0) go to 847
+         if (pt > min_pop) go to 1
 847      t1 = dsecnd()
          write (6,63) (t1-t0)/60.d0
   63     format(/1x,'Propagation took:',f24.2,' minutes')
@@ -321,14 +229,14 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine plot(psi,r,wt,nw,npt,btg,ptg,pcost,dist)
+      use settings, only : nr, nt, dp
       implicit none
-      integer :: nr, nt, nw, npt, nrs, i, j
-      double precision :: dist
-      common /array/ nr,nt
-      double complex psi(nr,nt),phi(nr,nt),pxi(nr,npt)
-      double precision :: r(nr),wt(nr),btg(nt,nt)
-      double precision :: pcost(npt),ptg(nt,npt)
-      double precision :: r0, r1, si, zz, ro
+      integer :: nw, npt, nrs, i, j
+      real(dp) :: dist
+      complex(dp) psi(nr,nt),phi(nr,nt),pxi(nr,npt)
+      real(dp) :: r(nr),wt(nr),btg(nt,nt)
+      real(dp) :: pcost(npt),ptg(nt,npt)
+      real(dp) :: r0, r1, si, zz, ro, dble
 !     coeffs: angular DVR-> angular FBR conversion
       r0 = 0.d0
       r1 = 1.d0
@@ -341,7 +249,7 @@
       call dgemm('n','n',nrs,npt,nt,r1,phi,nrs,ptg,nt,r0,pxi,nrs)
       do i = 1,nr
          do j = 1,npt
-            si = dble((pxi(i,j))*dconjg(pxi(i,j)))/(wt(i)) !*pi/(wt(i))
+            si = dble((pxi(i,j))*conjg(pxi(i,j)))/(wt(i)) !*pi/(wt(i))
             zz = r(i)*pcost(j)
             ro = r(i)*dsqrt(1.d0-(pcost(j)**2))
             if ((i.eq.1).and.(j.eq.1)) then
@@ -355,126 +263,73 @@
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine expmih (etr,tr,r,cent,dt,voptic)
+      subroutine expmih (etr,tr,r,cent,voptic)
+      use settings, only : timestep, nr, nt, rmid, rabs, eminr, dp
+      use helpers, only : expmat
       implicit none
 !     -----------------------------------------------------------------
 !     Sets up the exponentiated Hamiltonian factors
 !     needed for split operator propagation.
 !     -----------------------------------------------------------------
-      integer :: nr, nt
-      common /array/ nr,nt
-      double precision :: eminr, rabs, rmid
-      common /optics/ eminr,rabs,rmid
-      double complex :: etr(nr, nr, nt),vopt
-      double precision :: tr(nr,nr),r(nr)
-      double precision :: cent(nt)
-      double precision :: voptic(nr)
+      complex(dp) :: etr(nr, nr, nt), vopt
+      real(dp) :: tr(nr,nr),r(nr)
+      real(dp) :: cent(nt)
+      real(dp) :: voptic(nr)
       integer :: i, j, k
-      double precision :: dt, rmrmid
+      real(dp) :: rmrmid
 
 !     exp(-iTdt)
       do k = 1,nt
          do j = 1,nr
             voptic(j) = 0.d0       
             do i = 1,nr
-               etr(i,j,k) = dcmplx(0.d0,-dt)*tr(i,j)
+               etr(i,j,k) = cmplx(0.d0, -timestep, kind=dp)*tr(i,j)
             enddo
             rmrmid = r(j)-rmid
             call optpot (rmrmid,rabs,eminr,vopt)
             if (rmrmid .gt. 0.d0) then
-                voptic(j) = dimag(vopt)
+                voptic(j) = aimag(vopt)
             endif
             vopt = tr(j,j)+(cent(k)/r(j)**2)+vopt!+pseudopot(k-1,r(j))
-            etr(j,j,k) = dcmplx(0.d0,-dt)*vopt
+            etr(j,j,k) = cmplx(0.d0, -timestep, kind=dp)*vopt
          enddo
          call expmat(etr(1,1,k),nr)
       enddo
       return
       end
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine expmat(z,n)
-      implicit none
-!     -----------------------------------------------------------------
-!     Exponentiates a complex symmetric matrix z to give exp(z).
-!     -----------------------------------------------------------------
-      integer :: n, lwork, ierr, i, j, k
-      double complex :: z(n, n), zeta(n), v(n, n), work(2*n), s
-      double precision :: rwork(2*n), zr, zi, exp, cos, sin
-      
-      lwork = 2*n
-      call zgeev ('N','V',n,z,n,zeta,v,n,v,n,work,lwork,rwork,ierr)
-      if (ierr .ne. 0) stop 'expmat 1'
-      do j = 1,n
-         s = (0.d0,0.d0)
-         do i = 1,n
-            s = s+v(i,j)*v(i,j)
-         enddo
-         s = 1.d0/sqrt(s)
-         do i = 1,n
-            v(i,j) = s*v(i,j)
-         enddo
-      enddo
-      do j = 1,n
-         do i = 1,j
-            z(i,j) = (0.d0,0.d0)
-         enddo
-      enddo
-      do k = 1,n
-         zr = dreal(zeta(k))
-         zi = dimag(zeta(k))
-         zeta(k) = exp(zr)*dcmplx(cos(zi),sin(zi))
-         do j = 1,n
-            s = v(j,k)*zeta(k)
-            do i = 1,j
-               z(i,j) = z(i,j)+v(i,k)*s
-            enddo
-         enddo
-      enddo
-      do j = 1,n
-         do i = 1,j-1
-            z(j,i) = z(i,j)
-         enddo
-      enddo
-      return
-      end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine optpot (rmrmid,rabs,eminr,vopt)
+      use settings, only : dp
       implicit none
 !     -----------------------------------------------------------------
 !     Transmission-free negative imaginary absorbing potential.
 !     -----------------------------------------------------------------
 
-      double precision :: rmrmid, rabs, eminr, x, y
-      double complex :: vopt
-      double precision, parameter :: c = 2.62206d0
+      real(dp) :: rmrmid, rabs, eminr, x, y
+      complex(dp) :: vopt
+      real(dp), parameter :: c = 2.62206d0
       vopt = (0.d0,0.d0)
       if (rmrmid .gt. 0.d0) then
          x = c*rmrmid/rabs
          y = 4.d0/(c-x)**2+4.d0/(c+x)**2-8.d0/c**2  
-         vopt = dcmplx(0.d0,-eminr*y)
+         vopt = cmplx(0.d0,-eminr*y, kind=dp)
       endif
       return
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-      subroutine xoperats(r,etr,cost,btg,rmid,ntest,mrflag,voptic)
-      use settings, only : field
+      subroutine xoperats(r,etr,cost,btg,mrflag,voptic)
+      use settings, only : field, dk, z, nr, nt, TEST, rmid, dp
       implicit none
-      integer :: nr, nt
-      common /array/ nr,nt
-      double precision :: pi, dk, z, zacc, dt, finish
-      common /param/ pi,dk,z,zacc,dt,finish
-      double precision :: r(nr),tr(nr,nr)
-      double precision :: btg(nt,nt),cost(nt),cent(nt)
-      double complex etr(nr,nr,nt)
-      double precision :: voptic(nr)
+      real(dp) :: r(nr),tr(nr,nr)
+      real(dp) :: btg(nt,nt),cost(nt),cent(nt)
+      complex(dp) etr(nr,nr,nt)
+      real(dp) :: voptic(nr)
       integer :: mrflag, ii
-      logical :: ntest
-      double precision :: rmid
 ! 
 !     radial dvr kinetic operator
 !
@@ -482,13 +337,12 @@
 !
 !     angular grid points,transform matrix,weights,centrifugal
 !
-      write(6, *)nt
       call legdvr(nt,cost,btg,cent)
 !
-      if (ntest .eqv. .FALSE.) then
+      if (TEST .eqv. .FALSE.) then
 !        exponentiate kinetic energy operator
          print*,'exponentiating KE operator'
-         call expmih(etr,tr,r,cent,dt,voptic)
+         call expmih(etr,tr,r,cent,voptic)
 !         write(6,'(f10.5f10.5/)')REAL(etr(1, 2, 2)),AIMAG(etr(1, 2, 2))
 !   
 !        work out absorbing boundary limit
@@ -503,17 +357,15 @@
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine couzero(r,nr,nmax,xmin,nx)
+      subroutine couzero(r,nr,nmax)
+      use settings, only : eta1, xmin, nx, xlmin, xlmax, dx, dp
       implicit none
 !     -----------------------------------------------------------------
 !     approx location of coulomb function, F_0(eta,x), zeros for DVR grid.
 !     -----------------------------------------------------------------
-      double precision :: r(nmax)
-      double precision :: xlmin, xlmax, dx, eta1
-      common /wave/ xlmin,xlmax,dx,eta1
-      
-      integer :: nr, ifail, nmax, nx, i
-      double precision :: x, f(1), g(1), gp(1), fp(1), fo, xmin
+      integer :: nr, ifail, nmax, i
+      real(dp) :: r(nmax)
+      real(dp) :: x, f(1), g(1), gp(1), fp(1), fo
 !
 !     First find approximate location of zeros by stepping
       nr = 0
@@ -542,19 +394,13 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine rtnewt(r,a,wt)
-      use settings, only : field
+      use settings, only : field, dk, zacc, nr, xlmin, xlmax, dx, eta1, pi, dp
       implicit none
-      integer :: nr, nt
-      common /array/ nr,nt
-      double precision :: pi, dk, z, zacc, dt, finish
-      common /param/ pi,dk,z,zacc,dt,finish
-      double precision :: r(nr),a(nr),wt(nr)
-      double precision :: xlmin, xlmax, dx, eta1
-      common /wave/ xlmin,xlmax,dx,eta1
+      real(dp) :: r(nr),a(nr),wt(nr)
       
       integer :: i, ncount, IFAIL, J
-      double precision :: DABS, dif, xmaxdif, slimit, abs, dz
-      double precision :: f(1), g(1), fp(1), gp(1), x1, x2, xz
+      real(dp) :: DABS, dif, xmaxdif, slimit, abs, dz, sqrt
+      real(dp) :: f(1), g(1), fp(1), gp(1), x1, x2, xz
 
 !     Newton-Raphson method to find roots more accurately. 
       do i = 1,nr
@@ -568,7 +414,10 @@
          if (ifail.ne.0) stop 'couzero | coulfg 3'
          dz = f(1)/fp(1)
          xz = xz - dz
-         if ((x1-xz)*(xz-x2).lt.0.d0) pause 'jumped out of bracket'
+         if ((x1-xz)*(xz-x2).lt.0.d0) then
+           write(6, *) 'jumped out of bracket'
+           stop
+         endif
          if (abs(dz).gt.zacc) go to 123
 !         print*, 'newtr converged after',j,'iterations'
          call coulfg(xz,eta1,xlmin,xlmax,f,g,fp,gp,1,0,ifail)
@@ -657,7 +506,7 @@
 ! ***  REAL*8 + CDC DOUBLE P&  E0 FOR CDC SINGLE P; AND TRUNCATE VALUE.
 !
 !                       ACCUR = R1MACH(4)
-      double precision :: pi, accur, RT2EPI, ETA, GJWBK, ACC, ACC4, ACCH, X, XLM, E2MM1, DELL, MOD, ABS, XLL, FLOAT, MAX0, XI
+      double precision :: pi, accur, RT2EPI, ETA, ACC, ACC4, ACCH, X, XLM, E2MM1, DELL, MOD, ABS, XLL, FLOAT, MAX0, XI
       double precision :: FCL, PK, PX, EK, F, PK1, D, FPL, XL, RL, EL, SL, A, B, C, DP, DQ, DI, DR, BI, BR, AI, AR, Q, WI, GCL1
       double precision :: GPL, GCL, W,  FCM, BETA, ALPHA, P, GAM, TA, FJWKB, FCL1, DF, TK, GJWKB
       integer :: MODE, LXTRA, INT, L1, LP, L, MAXL, SIGN
@@ -923,14 +772,15 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine coutr(r,n,dk,z,t)
+      use settings, only : dp
       implicit none
 !     -----------------------------------------------------------------
 !     Coulomb dvr kinetic energy
 !     -----------------------------------------------------------------
       integer :: n
-      double precision :: dk, z
-      double precision :: r(n),t(n,n)
-      double precision :: te, ri, rj
+      real(dp) :: dk, z
+      real(dp) :: r(n),t(n,n)
+      real(dp) :: te, ri, rj
       integer :: i, j
       te = dk**2
       do i = 1,n
@@ -955,16 +805,17 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine symevp (a,n,d,ierr)
+      use settings, only : dp
       implicit none
 !     ----------------------------------------------------------------- 
 !     Uses LAPACK DSYEV to diagonalise a real symmetric matrix.
 !     ----------------------------------------------------------------- 
       
       integer :: n, ierr
-      double precision :: a(n,n),d(n)
-      double precision :: work(34*n)
+      real(dp) :: a(n,n),d(n)
+      real(dp) :: work(34*n)
       integer :: lwork, i, j
-      double precision :: dsqrt, s
+      real(dp) :: dsqrt, s
 !
       lwork = 34*n 
       call dsyev ('V','U',n,a,n,d,work,lwork,ierr) 
@@ -985,14 +836,15 @@
      
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine legdvrw(n,x,btg,twt,cent)
+      use settings, only : dp
       implicit none
 !     -----------------------------------------------------------------
 !     Legendre polynomial discrete variable representation.
 !     -----------------------------------------------------------------
       integer :: n
-      double precision :: x(n),d(n),btg(n,n),work(2*(n-1)),twt(n),cent(n)
+      real(dp) :: x(n),d(n),btg(n,n),work(2*(n-1)),twt(n),cent(n)
       integer :: i, ierr, j
-      double precision :: ovnorm
+      real(dp) :: ovnorm
 !     compute jacobi matrix
       do i = 1,n
          x(i) = 0.d0
@@ -1023,14 +875,15 @@
       
       
       subroutine legdvr(n,x,btg,cent)
+      use settings, only : dp
       implicit none
 !     -----------------------------------------------------------------
 !     Legendre polynomial discrete variable representation.
 !     -----------------------------------------------------------------
       integer :: n
-      double precision :: x(n),d(n),btg(n,n),work(2*(n-1)),cent(n)
+      real(dp) :: x(n),d(n),btg(n,n),work(2*(n-1)),cent(n)
       integer :: i, ierr, j
-      double precision :: ovnorm
+      real(dp) :: ovnorm
 !     compute jacobi matrix
       do i = 1,n
          x(i) = 0.d0
@@ -1060,23 +913,21 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine potop (ev2,dt,r,cost,time,dist,zx)
-      use settings, only : field
+      subroutine potop (ev2,r,dist,zx)
+      use settings, only : field, timestep, nr, nt, dp
       use surface, only : potsurf
       implicit none
 !     -------------------------------------------------------------------------
 !     compute the time-dependent potential energy operator
 !     -------------------------------------------------------------------------
-      double precision :: dt, time, dist
-      integer :: nr, nt
-      common /array/ nr,nt
-      double complex :: ev2(nr,nt)
-      double precision :: r(nr),cost(nt)
-      double precision :: zx(nr,nt)
+      real(dp) :: dist
+      complex(dp) :: ev2(nr,nt)
+      real(dp) :: r(nr)
+      real(dp) :: zx(nr,nt)
       integer :: i, j
-      double precision :: dt2, zz, zd, v, ar
+      real(dp) :: dt2, zz, zd, v, ar
 !     exp(-iVdt/2)
-      dt2 = 0.5d0*dt
+      dt2 = 0.5d0*timestep
       do i = 1,nr
          do j = 1,nt
             zz = zx(i,j)
@@ -1087,7 +938,7 @@
                v = potsurf(r(i),zz,dist)+field*zd
             endif
             ar = -v*dt2
-            ev2(i,j) = dcmplx(dcos(ar),dsin(ar))
+            ev2(i,j) = cmplx(dcos(ar), dsin(ar), kind=dp)
          enddo
       enddo
       return
@@ -1095,23 +946,22 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine split (psi,etr,ev2,btg)
+      use settings, only : nr, nt, dp
       implicit none
 !     -----------------------------------------------------------------
 !     Evolves the wavepacket through a time step dt
 !     using the symmetric split operator method.
 !     -----------------------------------------------------------------
 !     common block
-      integer :: nr, nt
-      common /array/ nr,nt
 !     input arrays
-      double complex :: psi(nr*nt)
-      double complex :: etr(nr*nr*nt)
-      double complex :: ev2(nr*nt)
-      double precision :: btg(nt*nt)
+      complex(dp) :: psi(nr*nt)
+      complex(dp) :: etr(nr*nr*nt)
+      complex(dp) :: ev2(nr*nt)
+      real(dp) :: btg(nt*nt)
 !     local array
-      double complex :: phi(nr*nt)
-      double complex :: c0, c1
-      double precision :: r0, r1
+      complex(dp) :: phi(nr*nt)
+      complex(dp) :: c0, c1
+      real(dp) :: r0, r1
       integer :: n, ij, k, ke, kp, nrs, ns
       
       
@@ -1158,19 +1008,16 @@
 
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine fion (psi,dist,dedz,dft,vel,zx,ionstep,dedzo)
-      use settings, only : mass, v0
+      subroutine fion (psi,dedz,dft,vel,zx,ionstep,dedzo)
+      use settings, only : mass, v0, nr, nt, dp
       implicit none
-      double precision :: dist, dedz, dft, vel, dedzo, vel0
+      real(dp) :: dedz, dft, vel, dedzo, vel0
       integer :: ionstep
-      integer :: nr, nt, n
-      common /array/ nr,nt
-      double precision :: dist0
-      common /teq0/ dist0
-      double complex :: psi(nr*nt)
-      double precision :: zx(nr*nt)
+      integer :: n
+      complex(dp) :: psi(nr*nt)
+      real(dp) :: zx(nr*nt)
       integer :: i
-      double precision :: dsin, dcos, arg, v1, v5
+      real(dp) :: dsin, dcos, arg, v1, v5
       
       vel0 = vel
       if (ionstep.ne.0) then
@@ -1183,27 +1030,27 @@
 !
       n = nr*nt
       do i = 1,n
-         arg = (-vel+v0)*zx(i)
-         psi(i) = psi(i)*dcmplx(dcos(arg),dsin(arg))
+         arg = (-vel+vel0)*zx(i)
+         psi(i) = psi(i)*cmplx(dcos(arg), dsin(arg), kind=dp)
       enddo
 !
       dedzo = dedz
       return
       end
+      
+      
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine denergy2(psi,r,dist,zx,dedz)
-      use settings, only : field
+      use settings, only : field, nr, nt, dp
       use surface, only : dpotsurf
       implicit none
-      double precision :: dist, dedz
-      integer :: nr, nt
-      common /array/ nr,nt
-      double complex :: psi(nr, nt)
-      double precision :: r(nr)
-      double precision :: zx(nr,nt)
+      real(dp) :: dist, dedz
+      complex(dp) :: psi(nr, nt)
+      real(dp) :: r(nr)
+      real(dp) :: zx(nr,nt)
       
-      double precision :: vint, ev, zd, zz
+      real(dp) :: vint, ev, zd, zz
       integer :: i, j
       dedz = 0.d0
 
@@ -1217,7 +1064,7 @@
             else
                ev = dpotsurf(r(j),zz,dist) + field
             endif
-            vint =  vint + dble(dconjg(psi(j,i))*ev*psi(j,i))
+            vint =  vint + dble(conjg(psi(j,i))*ev*psi(j,i))
         enddo
       enddo
       dedz =  -(-field +0.25d0/(dist**2) + vint) 
@@ -1225,63 +1072,15 @@
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      function pnorm (psi)
-      implicit none
-!     -----------------------------------------------------------------
-!     Wavepacket left on grid
-!     -----------------------------------------------------------------
-
-      integer :: nr, nt
-      common /array/ nr,nt
-      double complex :: psi(nr, nt)
-      double precision :: pnorm
-      integer :: i, j
-      pnorm = 0.d0
-      do i = 1,nr
-         do j=1,nt
-            pnorm = pnorm+(dble(psi(i,j))**2+dimag(psi(i,j))**2)!*pi!*a(i)**2
-         enddo
-      enddo
-      return
-      end
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      function pnorm2 (psi,dist,r,cost,rmid)
-      implicit none
-!     -----------------------------------------------------------------
-!     Wavepacket left inside area bound by absorbing potential and surface
-!     -----------------------------------------------------------------
-      double precision :: rmid, dist
-      integer :: nr, nt
-      common /array/ nr,nt
-      double complex :: psi(nr, nt)
-      double precision :: r(nr),cost(nt)
-      double precision :: d, pnorm2, z
-      integer :: i, j
-      d = -dist
-      pnorm2 = 0.d0
-      do i = 1,nr
-         do j = 1,nt
-            z = r(i)*cost(j)
-            if ((z.gt.d).and.(r(i).lt.rmid)) then
-!            if (r(i).lt.rmid) then
-               pnorm2 = pnorm2+(dimag(psi(i,j))**2+dble(psi(i,j))**2)
-            endif
-         enddo
-      enddo
-      return
-      end
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       double precision function en(xn,xm,xk)
-      use settings, only : field
+      use settings, only : field, dp
       implicit none
-      double precision :: xn, xm, xk
-      double precision :: a, b, c, d, e, g, h, p
+      real(dp) :: xn, xm, xk
+      real(dp) :: a, b, c, d, e, g, h, p
       a=-1.d0/(2.d0*(xn**2))
       b=3.d0*field*xn*xk/2.d0
       c=-(field**2)*(xn**4)*(17.d0*(xn**2)-3.d0*(xk**2)-9.d0*(xm**2)+19.d0)/16.d0
-      d=(3.d0/32.d0)*(xn**7)*xk*(23.d0*(xn**2)-(xk**2)+11.d0*(xm**2)+39.d0)*(field*3)
+      d=(3.d0/32.d0)*(xn**7)*xk*(23.d0*(xn**2)-(xk**2)+11.d0*(xm**2)+39.d0)*(field**3)
       e=-(xn**10)*(field**4)*(5487.d0*(xn**4)+35182.d0*(xn**2)-1134.d0*(xm**2)*(xk**2)+1806.d0*(xn**2)*(xk**2))/1024.d0
       g=-(xn**10)*(field**4)*(-3402.d0*(xn**2)*(xm**2)+147.d0*(xk**4)-549.d0*(xm**4)+5754.d0*(xk**2)-8622.d0*(xm**2)+16211.d0)/1024.d0
       h=3.d0*(xn**13)*xk*(field**5)*(10563.d0*(xn**4)+90708.d0*(xn**2)+220.d0*(xm**2)*(xk**2)+98.d0*(xn**2)*(xk**2))/1024.d0
@@ -1292,12 +1091,13 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       double precision function pseudopot(l,r)
+      use settings, only : dp
       implicit none
 !     -------------------------------------------------------------------------- 
 !     Bardsley Pseudopotential for Xenon
 !     ---------------------------------------------------------------------- 
       integer :: l
-      double precision :: r, a, b
+      real(dp) :: r, a, b
       if (l.eq.0) then
 !       a=9.102d0
 !       b=0.511d0
@@ -1329,8 +1129,8 @@
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine init(pbtg,psi,hwav,b,x,nx,ntcw,a,nr,basis,nt,velacc)
-      use settings, only : v0, ntest, ni, n0, k0, mm, field
+      subroutine init(pbtg,psi,hwav,x,nx,ntcw,a,nr,basis,nt,velacc)
+      use settings, only : v0, TEST, ni, n0, k0, nStates, field, dist0, mass, b, dp
       use surface, only : potsurf
       implicit none
 !--------------------------------------------------------------------------
@@ -1341,21 +1141,18 @@
 !--------------------------------------------------------------------------
       
       integer :: nx, ntcw, nr,  nt
-      double precision :: b
-      double precision :: dist0 
-      common /teq0/ dist0
-      double precision :: btg(nt,nt),cost(nt),cent(nt)
-      double precision :: pbtg(ntcw,ntcw),ptg(nt,ntcw)
-      double precision :: r(nr),hr(nr,nr)
-      double precision :: e(nr*nt)
-      double precision, dimension(:, :), allocatable :: h
-      double precision :: vt(nt,nt),ht(nt,nt,nr),phi(nx,nt)
-      double precision :: p(nx,ntcw)
-      double precision :: trans(nx),x(nx),a(nx),basis(nx,nr)
-      double precision :: hwav(nr*nt,mm)
-      double complex psi(nx,ntcw)
-      double precision :: velacc(mm)
-      double precision :: aintegral, sa, denn, diff, enn, ei, zd, zz, r0, r1, en
+      real(dp) :: btg(nt,nt),cost(nt),cent(nt)
+      real(dp) :: pbtg(ntcw,ntcw),ptg(nt,ntcw)
+      real(dp) :: r(nr),hr(nr,nr)
+      real(dp) :: e(nr*nt)
+      real(dp), dimension(:, :), allocatable :: h
+      real(dp) :: vt(nt,nt),ht(nt,nt,nr),phi(nx,nt)
+      real(dp) :: p(nx,ntcw)
+      real(dp) :: trans(nx),x(nx),a(nx),basis(nx,nr)
+      real(dp) :: hwav(nr*nt,nStates)
+      complex(dp) psi(nx,ntcw)
+      real(dp) :: velacc(nStates)
+      real(dp) :: aintegral, sa, denn, diff, enn, ei, zd, zz, r0, r1, en
       integer :: ic, jc, nwav, istat, ndd, ierr, jt, jr, it, ir, i, j, k, n
 !
       allocate(h(nr*nt, nr*nt))
@@ -1371,6 +1168,11 @@
 !
 !     work out f_(i)(x) for i=1,...,nr laguerre basis functions at x(j) (j=1,...,nx) cwdvr points
 !     BAYE REGULARISED LAGUERRE: f_(i)(x)=(-1)^(i)*x_(i)^(-0.5)*x*L_(N)(x)*e^(-x/2)/(x-x_(i))
+      write(6, *) nx, nr
+      write(6, *) trans
+      write(6, *) r
+      write(6, *) x
+      write(6, *) basis
       do j = 1,nx
          do i = 1,nr
             basis(j,i) = ((-1.d0)**i)*trans(j)/(dsqrt(r(i)/b)*(x(j)-r(i))/b)
@@ -1418,16 +1220,11 @@
             endif
          enddo
       enddo
-!      write(6, *) 'ht: ', ht(1, 1, 1), ht(5, 3, 2)
-!      write(6, *) 'btg: ', btg(1, 1), btg(5, 3)
       do i = 1, nr
          call dgemm ('n','t',nt,nt,nt,r1,ht(1,1,i),nt,btg,nt,r0,vt,nt)
          call dgemm ('n','n',nt,nt,nt,r1,btg,nt,vt,nt,r0,ht(1,1,i),nt)
       enddo
       
-!      write(6, *) 'h: ', h(1, 1), h(5, 3)
-!      write(6, *) 'hr: ', hr(1, 1), hr(5, 3)
-!      write(6, *) 'ht: ', ht(1, 1, 1), ht(5, 3, 2)
       
 !     Build total Hamiltonian
       do i = 1,n
@@ -1451,18 +1248,9 @@
 !     Diagonalise Hamiltonian
 !     print*,'diagonalising intial Hamiltonian'
       ierr = 0
-      !write(6, '(10(1Xf15.5)/)')h
-      
-      write(6, *) h(1, 1), h(5, 3)
       call symevp (h,n,e,ierr)
       if (ierr.ne.0) stop 'hdvr | dgeev 2'
-      write(6, *) h(1, 1), h(5, 3)
-!      write(6, *) hwav(1, 1), hwav(5, 3)
-!      write(6, *) basis(1, 1), basis(5, 4)
-!      stop
-
-      
-      if (ntest .eqv. .TRUE.) then
+      if (TEST .eqv. .TRUE.) then
          enn = -0.5d0/dble(ni)**2 + 0.25d0/dist0
          do i = 1,n
             ei = e(i)!*4.35974417d-18/1.60218d-19
@@ -1477,7 +1265,7 @@
          stop
       endif
 !     store selection of wavefunctions (eigenvectors)
-      do istat = 1,mm
+      do istat = 1,nStates
          nwav = n0(istat)
          do j = 1,n 
             hwav(j,istat) = h(j,nwav)
@@ -1485,7 +1273,7 @@
 !    work out energy shift from infinite distance
          denn = (e(nwav)-field*dist0-0.25d0/dist0)-en(dble(ni),0.d0,dble(k0(istat)))
 !    work out corresponding velocity change from infinite distance
-         velacc(istat) = -dsqrt(v0**2-denn*2.d0/1836.d0)
+         velacc(istat) = -dsqrt(v0**2-denn*2.d0/mass)
       enddo
 !      
 !     Tranform Eigenvector to CWDVR basis:
@@ -1535,29 +1323,29 @@
 !
       do i = 1,nx
          do j = 1,ntcw
-            psi(i,j) = dcmplx(p(i,j),0.d0)
+            psi(i,j) = cmplx(p(i,j), 0.d0, kind=dp)
          enddo
       enddo
       return 
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine wavfunc(pbtg,psi,hwav,b,nx,ntcw,a,nr,basis,nt,istat,mm)
+      subroutine wavfunc(pbtg,psi,hwav,nx,ntcw,a,nr,basis,nt,istat,nStates)
+      use settings, only : b, dp
       implicit none
 !--------------------------------------------------------------------------
 !     NB x(nx) are the cwdvr grid points and r(nr) are the laguerre points
 !     cost(nt) are the ang points for initial diagonalisation and cost(ntcw) and those for propagation
 !--------------------------------------------------------------------------
-      integer :: nx, ntcw, nr, nt, istat, mm
-      double precision :: b
-      double precision :: phi(nx,nt),hwav(nr*nt,mm),basis(nx,nr)
-      double precision :: a(nx),ptg(nt,ntcw),pbtg(ntcw,ntcw)
-      double precision :: p(nx,ntcw)
-      double complex psi(nx,ntcw)
-      double precision :: n
+      integer :: nx, ntcw, nr, nt, istat, nStates
+      real(dp) :: phi(nx,nt),hwav(nr*nt,nStates),basis(nx,nr)
+      real(dp) :: a(nx),ptg(nt,ntcw),pbtg(ntcw,ntcw)
+      real(dp) :: p(nx,ntcw)
+      complex(dp) psi(nx,ntcw)
+      real(dp) :: n
       
       integer :: i, j, k, ic, jc
-      double precision :: aintegral, sa, r0, r1
+      real(dp) :: aintegral, sa, r0, r1
 
       n = nr*nt
       do k = 1,nt        !loop over angles
@@ -1600,23 +1388,24 @@
 !
       do i = 1,nx
          do j = 1,ntcw
-            psi(i,j) = dcmplx(p(i,j),0.d0)
+            psi(i,j) = cmplx(p(i,j), 0.d0, kind=dp)
          enddo
       enddo
       return 
       end
 
       subroutine lagdvr(n,b,r,t)
+      use settings, only : dp
       implicit none
 !     -------------------------------------------------------------------------
 !     compute the zeroes of Ln(x) to obtain n DVR grid points
 !     ans also compute the kinetic energy operator matrix for reg-laguerre DVR
 !     -------------------------------------------------------------------------
       integer :: n
-      double precision :: b
-      double precision :: r(n),d(n),t(n,n),z(n,n),work(2*n-2)!,wt(n)
+      real(dp) :: b
+      real(dp) :: r(n),d(n),t(n,n),z(n,n),work(2*n-2)!,wt(n)
       integer :: i, j, ierr
-      double precision :: obs
+      real(dp) :: obs
       
       do i = 1,n
          r(i) = (2*i-1)
@@ -1656,15 +1445,16 @@
       end
 
       subroutine lagtrans(x,nx,trans,nr,b)
+      use settings, only : dp
       implicit none
 !     ---------------------------------------------------------------------------
 !     computer value of Baye reg-laguerre basis functions at CWDVR grid points
 !     ---------------------------------------------------------------------------
       integer :: nx, nr
-      double precision :: b
-      double precision :: x(nx),ts(0:nr),trans(nx)
+      real(dp) :: b
+      real(dp) :: x(nx),ts(0:nr),trans(nx)
       integer :: i, j
-      double precision :: xj
+      real(dp) :: xj
       do i = 1,nx
          ts(0) = 1.d0
          ts(1) = 1.d0-x(i)/b
@@ -1679,30 +1469,29 @@
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine flux2(psi,cost,mrflag,voptic,fg2,fl2,vel)
+      use settings, only : nr, nt, dp
       implicit none
-      double precision :: vel, fl2, fg2
+      real(dp) :: vel, fl2, fg2
       integer :: mrflag
-      integer :: nr, nt
-      common /array/ nr,nt
-      double complex :: psi(nr,nt)
-      double precision :: cost(nt)
-      double precision :: voptic(nr)
+      complex(dp) :: psi(nr,nt)
+      real(dp) :: cost(nt)
+      real(dp) :: voptic(nr)
       integer :: k, i
-      double precision :: dp
+      real(dp) :: dp2, dble
       
       fg2 = 0.d0
       fl2 = 0.d0
       do k = 1,nt
-         dp = 0.d0
+         dp2 = 0.d0
          do i = mrflag,nr
             if (voptic(i).ne.0.d0) then
-               dp = dp + 2.d0*dble(dconjg(psi(i,k))*voptic(i)*psi(i,k))/vel
+               dp2 = dp2 + 2.d0*dble(conjg(psi(i,k))*voptic(i)*psi(i,k))/vel
             endif
          enddo
          if (cost(k).gt.0.d0) then
-            fg2 = fg2+dp
+            fg2 = fg2+dp2
          else
-            fl2 = fl2+dp
+            fl2 = fl2+dp2
          endif
       enddo
       return
@@ -1711,15 +1500,14 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine anginterp(npt,ptg,pcost)
+      use settings, only : nt, dp
       implicit none
 !     --------------------------------------------------------------------------
 !     work out angular FBR function at npt angular plotting points
 !     --------------------------------------------------------------------------
       integer :: npt
-      integer :: nr, nt
-      common /array/ nr,nt
-      double precision :: pbtg(npt,npt),pcost(npt),pcent(npt),ptwt(npt)
-      double precision :: ptg(nt,npt)
+      real(dp) :: pbtg(npt,npt),pcost(npt),pcent(npt),ptwt(npt)
+      real(dp) :: ptg(nt,npt)
       integer :: i, j
       call legdvrw(npt,pcost,pbtg,ptwt,pcent)
       do i = 1,nt

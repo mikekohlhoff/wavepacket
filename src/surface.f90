@@ -1,24 +1,25 @@
 module surface
+  use settings, only : dp
   implicit none
   
-  double precision, parameter :: pi = dacos(-1.d0)
+  real(dp), parameter :: pi = dacos(-1.d0)
   
   ! chulkov potential parameters for metal surface of interest
-  double precision, parameter :: xhar = 27.2113845d0
+  real(dp), parameter :: xhar = 27.2113845d0
   
   ! Jellium surface parameters for aluminium surface (see paper by Jennings and Jones)
-  double precision, parameter :: z0=  0.7d0
-  double precision, parameter :: v0 = -0.574d0
-  double precision, parameter :: beta = 1.25d0
-  double precision, parameter :: ajel = -1.d0-4.d0*v0/beta
-  double precision, parameter :: bjel = -2.d0*(v0/ajel)
+  real(dp), parameter :: z0=  0.7d0
+  real(dp), parameter :: v0 = -0.574d0
+  real(dp), parameter :: beta = 1.25d0
+  real(dp), parameter :: ajel = -1.d0-4.d0*v0/beta
+  real(dp), parameter :: bjel = -2.d0*(v0/ajel)
   
   !-----Cu100---------------------      
-  double precision, parameter :: as = 3.415d0
-  double precision, parameter :: a10 = -11.480d0/xhar
-  double precision, parameter :: a1 = 6.1d0/xhar
-  double precision, parameter :: a2 = 3.782d0/xhar
-  double precision, parameter :: bs = 2.539d0
+  real(dp), parameter :: as = 3.415d0
+  real(dp), parameter :: a10 = -11.480d0/xhar
+  real(dp), parameter :: a1 = 6.1d0/xhar
+  real(dp), parameter :: a2 = 3.782d0/xhar
+  real(dp), parameter :: bs = 2.539d0
       
   !-----Cu111--------------
   !      as = 3.94d0
@@ -27,19 +28,19 @@ module surface
   !      a2 = 4.3279d0/xhar
   !      bs = 2.9416d0
   !------------------------
-  double precision, parameter :: z1 = 5.d0*pi/(4.d0*bs)
-  double precision, parameter :: a20 = a2-a10-a1
-  double precision, parameter :: a3 = -a20-a2/dsqrt(2.d0)
-  double precision, parameter :: aa = bs*a2*dsin(bs*z1)/a3
-  double precision, parameter :: xlam = 2.d0*aa
-  double precision, parameter :: zim = z1-1.d0/aa*dlog(-aa/(2.d0*a3))
+  real(dp), parameter :: z1 = 5.d0*pi/(4.d0*bs)
+  real(dp), parameter :: a20 = a2-a10-a1
+  real(dp), parameter :: a3 = -a20-a2/dsqrt(2.d0)
+  real(dp), parameter :: aa = bs*a2*dsin(bs*z1)/a3
+  real(dp), parameter :: xlam = 2.d0*aa
+  real(dp), parameter :: zim = z1-1.d0/aa*dlog(-aa/(2.d0*a3))
   
   contains
   
-    double precision function dpotsurf(r,z,d)
+    real(dp) function dpotsurf(r,z,d)
       implicit none
-      double precision :: r, z, d
-      double precision :: zz, vee, vep, xl
+      real(dp) :: r, z, d
+      real(dp) :: zz, vee, vep, xl
       zz = z+d
 !     electron-image electron attraction
       if (zz.gt.z0) then
@@ -59,8 +60,8 @@ module surface
 
     double precision function potsurf(r,z,d)
       implicit none
-      double precision :: r, z, d
-      double precision :: zz, y2, vee, xl, dabs, vep
+      real(dp) :: r, z, d
+      real(dp) :: zz, y2, vee, xl, dabs, vep
 !     -------------------------------------------------------------------------
 !     compute the surface potential at distance d from surface (surface is at z=-d)
 !     -------------------------------------------------------------------------
