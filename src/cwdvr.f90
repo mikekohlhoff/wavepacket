@@ -19,27 +19,37 @@
       integer, parameter :: nmax = 2000  ! the upper limit of the number of CWDVR radial points
       double precision :: r1(nmax)
       ! TODO: get rid of the common nonsense!
+      integer :: nr, nt
+      common /array/ nr,nt     ! number of radial and angular points in propgation
+      double precision :: pi = dacos(-1.d0)
+      double precision :: dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish !mix of parameters
       double precision :: xlmin, xlmax, dx, eta1
       common /wave/ xlmin,xlmax,dx,eta1 !some parameters for CWDVR
       double precision :: eminr, rabs, rmid
       common /optics/ eminr,rabs,rmid   !parameters for absorbing potential
+      double precision :: dist0
+      common /teq0/ dist0               !initial conditions at t=0
       double precision :: b
       integer :: nrb, ntb
       common /interp/ b,nrb,ntb         !initial diagonalisation grid parameters 
       integer :: nwstep, npstep, nfstep
       common /outputs/ nwstep,npstep,nfstep 
       
+!     lots more definitions needed below
+      double precision :: rmax
+      double precision :: xmin
+      integer :: nx
       integer :: npt
       double precision :: pminr
       double precision :: xmax
 
       
-!     lots more definitions needed only for local code
-      double precision :: pi = dacos(-1.d0)
-
-      
       call loadSettings()
 !ccc  Parameters that need modifying
+!
+!     initial conditions
+      dist0 = 6.d0*ni**2  ! initial distance to start propagation (where the initial diagonalisation is carried out)
 !      
 !     initial diagonalisation grid parameters (regularised Laguerre)
       b = 0.3d0    ! radial scaling parameter
@@ -50,6 +60,20 @@
       rmid = dist0 !absorbing boundary position on radial grid, AND where flux detector plane sits, it is recommended to set it to dist0
       rabs = 30.d0 !width of absorbing boundary, needs to be wide enough to absorb the lowest energy components
 !
+!     CWDVR parameters (the propagation grid)
+      nt = 20      !no. of cwdvr angular points, can be greater than ntb if desired
+      dk = 3.0d0   !coulomb wave parameter: inc. dk-> 1.more points, 2.smaller sep further out, 3.more even distribution at larger dist
+      z = 50.d0    !inc.  z-> smaller the first grid point  
+      rmax = rmid+rabs  !maximum radial point of the grid
+!
+!     parameters for initial CWDVR grid point search
+      zacc = 1.d-8 ! newton-raphson accuracy
+      xmin = 8.d-3 ! Lower bound of 1st zero
+      nx = 100000  ! Number of grid points to scan for zero, may need to increase this if using high dk parameter    
+!
+!     propagation parameter
+      dt = 1.0d0   ! timestep
+      finish = 1e-2! stop when population less than 'finish'
 !
 !     outputting parameters
       nwstep = 100 ! number of time steps (+1)  between each output
@@ -63,7 +87,7 @@
 !
 !     CWDVR parameters and parameters for scanning CWDVR points
       eta1 = -z/dk
-      xmax = (rmid+rabs)*dk ! rmid + rabs = maximum radial point of grid
+      xmax = rmax*dk      
       dx = (xmax-xmin)/nx 
       xlmin = 0
       xlmax = 0
@@ -72,6 +96,7 @@
 !..........................CALCULATIONS....BEGIN....................................
 !
 !     get CWDVR zeros roughly, by scanning r and finding when the sign of the coulomb function changes
+!     r1=array(nmax), nr (not init?), nmax=2000, xmin=8e-3, nx=100000
       call couzero(r1,nr,nmax,xmin,nx)
 
       if (meanfield .eqv. .TRUE.) then
@@ -86,7 +111,7 @@
 
       write(6,'(A,/,A,/,A,f5.2,4X,A,f5.2,/)')'cwdvr grid parameters:','----------------------','dk = ',dk,'z = ',z
 
-      !write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)')'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ',nt,'dt = ',timestep, 'time steps between outputs=',npstep, 'velocity at infinite distance= ',v0,'E-field=',field
+      !write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)')'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ',nt,'dt = ',dt, 'time steps between outputs=',npstep, 'velocity at infinite distance= ',v0,'E-field=',field
       
       call main(r1,nmax,npt)
       stop
@@ -94,16 +119,20 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine main(r1,nmax,npt)
-      use settings, only : mass, v0, meanfield, mplot, ntest, n0, mm, field, dist0, min_pop, timestep, nr, nt
+      use settings, only : mass, v0, meanfield, mplot, ntest, n0, mm, field
       implicit none
       integer :: nmax, npt
       double precision :: r1(nmax)
-!      double precision :: pi, dk, z, zacc
-!      common /param/ pi,dk,z,zacc
+      integer :: nr, nt
+      common /array/ nr,nt
+      double precision :: pi, dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish
       double precision :: xlmin, xlmax, dx, eta1
       common /wave/ xlmin,xlmax,dx,eta1
       double precision :: eminr, rabs, rmid
       common /optics/ eminr,rabs,rmid
+      double precision :: dist0
+      common /teq0/ dist0
       double precision :: b
       integer :: nrb, ntb
       common /interp/ b,nrb,ntb
@@ -178,7 +207,7 @@
          if (mplot .eqv. .TRUE.) then
             write(filen5,'(A,i4.4)')'wavefunction.',nw
             open(500+nw,file=filen5,status='unknown')
-            write(500+nw,*),nr,npt,timestep*npstep,rmid
+            write(500+nw,*),nr,npt,dt*npstep,rmid
          endif
          if (meanfield .eqv. .TRUE.) then
             write(filen3,'(A,i4.4)')'totalforce.',nw
@@ -206,20 +235,26 @@
          dist = dist0
          ionstep = 0
          dedz = 0.d0
-         dft = nfstep*timestep
+         dft = nfstep*dt
          p0 = 1.d0
+         write(6, *) ev2(1, 1), ev2(2, 3), ev2(6, 7)
 1        istep = istep+1
-         time = istep*timestep
+         time = istep*dt
          if (istep .gt. 0) then
 !        work out time-depedent potential energy operator
-            call potop (ev2,r,dist,zx)
+            call potop (ev2,dt,r,cost,time,dist,zx)
 !        propagate wavefunction with split operator
             call split (psi,etr,ev2,btg)
+         
+!          write(6, *) 'loop starting'
+!          write(6, *) psi(1, 1), psi(3, 4), psi(5, 4)
+!          if (istep .gt. 5) then
+!            stop
+!          endif
         endif
 !
 !        work out population on grid at time t
          pt = pnorm(psi)
-!         pt = NORM2(psi)
 
          
 !
@@ -244,7 +279,7 @@
          endif
 !
           if (meanfield .eqv. .FALSE.) then
-             dist = dist + vel*timestep
+             dist = dist + vel*dt
              goto 426
           endif
 !        work out force on ion-core and propgate with velocity verlet
@@ -255,11 +290,11 @@
                 write(600+nw,*) dist,vel,time
                 write(300+nw,*) dist,dedz
             endif
-            call fion (psi,dedz,dft,vel,zx,ionstep,dedzo)
+            call fion (psi,dist,dedz,dft,vel,zx,ionstep,dedzo)
             ionstep = 1
          endif
 !
-         dist = dist + vel*timestep -0.5d0*dedz*timestep**2
+         dist = dist + vel*dt -0.5d0*dedz*dt**2
 !         
 !        Stop if ion goes backwards too far!
 426      if (dist.gt.(dist0+50.d0)) stop 'reversed too far!'
@@ -270,7 +305,7 @@
 !
 !        stop when distance from surface =0
          if (dist.lt.0.d0) go to 847
-         if (pt > min_pop) go to 1
+         if (pt .gt. finish) go to 1
 847      t1 = dsecnd()
          write (6,63) (t1-t0)/60.d0
   63     format(/1x,'Propagation took:',f24.2,' minutes')
@@ -286,10 +321,10 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine plot(psi,r,wt,nw,npt,btg,ptg,pcost,dist)
-      use settings, only : nr, nt
       implicit none
-      integer :: nw, npt, nrs, i, j
+      integer :: nr, nt, nw, npt, nrs, i, j
       double precision :: dist
+      common /array/ nr,nt
       double complex psi(nr,nt),phi(nr,nt),pxi(nr,npt)
       double precision :: r(nr),wt(nr),btg(nt,nt)
       double precision :: pcost(npt),ptg(nt,npt)
@@ -320,13 +355,14 @@
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine expmih (etr,tr,r,cent,voptic)
-      use settings, only : timestep, nr, nt
+      subroutine expmih (etr,tr,r,cent,dt,voptic)
       implicit none
 !     -----------------------------------------------------------------
 !     Sets up the exponentiated Hamiltonian factors
 !     needed for split operator propagation.
 !     -----------------------------------------------------------------
+      integer :: nr, nt
+      common /array/ nr,nt
       double precision :: eminr, rabs, rmid
       common /optics/ eminr,rabs,rmid
       double complex :: etr(nr, nr, nt),vopt
@@ -334,14 +370,14 @@
       double precision :: cent(nt)
       double precision :: voptic(nr)
       integer :: i, j, k
-      double precision :: rmrmid
+      double precision :: dt, rmrmid
 
 !     exp(-iTdt)
       do k = 1,nt
          do j = 1,nr
             voptic(j) = 0.d0       
             do i = 1,nr
-               etr(i,j,k) = dcmplx(0.d0,-timestep)*tr(i,j)
+               etr(i,j,k) = dcmplx(0.d0,-dt)*tr(i,j)
             enddo
             rmrmid = r(j)-rmid
             call optpot (rmrmid,rabs,eminr,vopt)
@@ -349,7 +385,7 @@
                 voptic(j) = dimag(vopt)
             endif
             vopt = tr(j,j)+(cent(k)/r(j)**2)+vopt!+pseudopot(k-1,r(j))
-            etr(j,j,k) = dcmplx(0.d0,-timestep)*vopt
+            etr(j,j,k) = dcmplx(0.d0,-dt)*vopt
          enddo
          call expmat(etr(1,1,k),nr)
       enddo
@@ -426,10 +462,12 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine xoperats(r,etr,cost,btg,rmid,ntest,mrflag,voptic)
-      use settings, only : field, dk, z, nr, nt
+      use settings, only : field
       implicit none
-!      double precision :: pi, dk, z, zacc
-!      common /param/ pi,dk,z,zacc
+      integer :: nr, nt
+      common /array/ nr,nt
+      double precision :: pi, dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish
       double precision :: r(nr),tr(nr,nr)
       double precision :: btg(nt,nt),cost(nt),cent(nt)
       double complex etr(nr,nr,nt)
@@ -444,12 +482,13 @@
 !
 !     angular grid points,transform matrix,weights,centrifugal
 !
+      write(6, *)nt
       call legdvr(nt,cost,btg,cent)
 !
       if (ntest .eqv. .FALSE.) then
 !        exponentiate kinetic energy operator
          print*,'exponentiating KE operator'
-         call expmih(etr,tr,r,cent,voptic)
+         call expmih(etr,tr,r,cent,dt,voptic)
 !         write(6,'(f10.5f10.5/)')REAL(etr(1, 2, 2)),AIMAG(etr(1, 2, 2))
 !   
 !        work out absorbing boundary limit
@@ -503,15 +542,18 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine rtnewt(r,a,wt)
-      use settings, only : field, dk, zacc, nr, nt
+      use settings, only : field
       implicit none
-      double precision, parameter :: pi = dacos(-1.d0)
+      integer :: nr, nt
+      common /array/ nr,nt
+      double precision :: pi, dk, z, zacc, dt, finish
+      common /param/ pi,dk,z,zacc,dt,finish
       double precision :: r(nr),a(nr),wt(nr)
       double precision :: xlmin, xlmax, dx, eta1
       common /wave/ xlmin,xlmax,dx,eta1
       
       integer :: i, ncount, IFAIL, J
-      double precision :: DABS, dif, xmaxdif, slimit, abs, dz, sqrt
+      double precision :: DABS, dif, xmaxdif, slimit, abs, dz
       double precision :: f(1), g(1), fp(1), gp(1), x1, x2, xz
 
 !     Newton-Raphson method to find roots more accurately. 
@@ -615,7 +657,7 @@
 ! ***  REAL*8 + CDC DOUBLE P&  E0 FOR CDC SINGLE P; AND TRUNCATE VALUE.
 !
 !                       ACCUR = R1MACH(4)
-      double precision :: pi, accur, RT2EPI, ETA, ACC, ACC4, ACCH, X, XLM, E2MM1, DELL, MOD, ABS, XLL, FLOAT, MAX0, XI
+      double precision :: pi, accur, RT2EPI, ETA, GJWBK, ACC, ACC4, ACCH, X, XLM, E2MM1, DELL, MOD, ABS, XLL, FLOAT, MAX0, XI
       double precision :: FCL, PK, PX, EK, F, PK1, D, FPL, XL, RL, EL, SL, A, B, C, DP, DQ, DI, DR, BI, BR, AI, AR, Q, WI, GCL1
       double precision :: GPL, GCL, W,  FCM, BETA, ALPHA, P, GAM, TA, FJWKB, FCL1, DF, TK, GJWKB
       integer :: MODE, LXTRA, INT, L1, LP, L, MAXL, SIGN
@@ -1018,21 +1060,23 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine potop (ev2,r,dist,zx)
-      use settings, only : field, timestep, nr, nt
+      subroutine potop (ev2,dt,r,cost,time,dist,zx)
+      use settings, only : field
       use surface, only : potsurf
       implicit none
 !     -------------------------------------------------------------------------
 !     compute the time-dependent potential energy operator
 !     -------------------------------------------------------------------------
-      double precision :: dist
+      double precision :: dt, time, dist
+      integer :: nr, nt
+      common /array/ nr,nt
       double complex :: ev2(nr,nt)
-      double precision :: r(nr)
+      double precision :: r(nr),cost(nt)
       double precision :: zx(nr,nt)
       integer :: i, j
       double precision :: dt2, zz, zd, v, ar
 !     exp(-iVdt/2)
-      dt2 = 0.5d0*timestep
+      dt2 = 0.5d0*dt
       do i = 1,nr
          do j = 1,nt
             zz = zx(i,j)
@@ -1051,13 +1095,14 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine split (psi,etr,ev2,btg)
-      use settings, only : nr, nt
       implicit none
 !     -----------------------------------------------------------------
 !     Evolves the wavepacket through a time step dt
 !     using the symmetric split operator method.
 !     -----------------------------------------------------------------
 !     common block
+      integer :: nr, nt
+      common /array/ nr,nt
 !     input arrays
       double complex :: psi(nr*nt)
       double complex :: etr(nr*nr*nt)
@@ -1113,12 +1158,15 @@
 
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine fion (psi,dedz,dft,vel,zx,ionstep,dedzo)
-      use settings, only : mass, v0, dist0, nr, nt
+      subroutine fion (psi,dist,dedz,dft,vel,zx,ionstep,dedzo)
+      use settings, only : mass, v0
       implicit none
-      double precision :: dedz, dft, vel, dedzo, vel0
+      double precision :: dist, dedz, dft, vel, dedzo, vel0
       integer :: ionstep
-      integer :: n
+      integer :: nr, nt, n
+      common /array/ nr,nt
+      double precision :: dist0
+      common /teq0/ dist0
       double complex :: psi(nr*nt)
       double precision :: zx(nr*nt)
       integer :: i
@@ -1135,7 +1183,7 @@
 !
       n = nr*nt
       do i = 1,n
-         arg = (-vel+vel0)*zx(i)
+         arg = (-vel+v0)*zx(i)
          psi(i) = psi(i)*dcmplx(dcos(arg),dsin(arg))
       enddo
 !
@@ -1145,10 +1193,12 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine denergy2(psi,r,dist,zx,dedz)
-      use settings, only : field, nr, nt
+      use settings, only : field
       use surface, only : dpotsurf
       implicit none
       double precision :: dist, dedz
+      integer :: nr, nt
+      common /array/ nr,nt
       double complex :: psi(nr, nt)
       double precision :: r(nr)
       double precision :: zx(nr,nt)
@@ -1176,12 +1226,13 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       function pnorm (psi)
-      use settings, only : nr, nt
       implicit none
 !     -----------------------------------------------------------------
 !     Wavepacket left on grid
 !     -----------------------------------------------------------------
 
+      integer :: nr, nt
+      common /array/ nr,nt
       double complex :: psi(nr, nt)
       double precision :: pnorm
       integer :: i, j
@@ -1196,12 +1247,13 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       function pnorm2 (psi,dist,r,cost,rmid)
-      use settings, only : nr, nt
       implicit none
 !     -----------------------------------------------------------------
 !     Wavepacket left inside area bound by absorbing potential and surface
 !     -----------------------------------------------------------------
       double precision :: rmid, dist
+      integer :: nr, nt
+      common /array/ nr,nt
       double complex :: psi(nr, nt)
       double precision :: r(nr),cost(nt)
       double precision :: d, pnorm2, z
@@ -1278,7 +1330,7 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine init(pbtg,psi,hwav,b,x,nx,ntcw,a,nr,basis,nt,velacc)
-      use settings, only : v0, ntest, ni, n0, k0, mm, field, dist0
+      use settings, only : v0, ntest, ni, n0, k0, mm, field
       use surface, only : potsurf
       implicit none
 !--------------------------------------------------------------------------
@@ -1290,6 +1342,8 @@
       
       integer :: nx, ntcw, nr,  nt
       double precision :: b
+      double precision :: dist0 
+      common /teq0/ dist0
       double precision :: btg(nt,nt),cost(nt),cent(nt)
       double precision :: pbtg(ntcw,ntcw),ptg(nt,ntcw)
       double precision :: r(nr),hr(nr,nr)
@@ -1364,11 +1418,16 @@
             endif
          enddo
       enddo
+!      write(6, *) 'ht: ', ht(1, 1, 1), ht(5, 3, 2)
+!      write(6, *) 'btg: ', btg(1, 1), btg(5, 3)
       do i = 1, nr
          call dgemm ('n','t',nt,nt,nt,r1,ht(1,1,i),nt,btg,nt,r0,vt,nt)
          call dgemm ('n','n',nt,nt,nt,r1,btg,nt,vt,nt,r0,ht(1,1,i),nt)
       enddo
       
+!      write(6, *) 'h: ', h(1, 1), h(5, 3)
+!      write(6, *) 'hr: ', hr(1, 1), hr(5, 3)
+!      write(6, *) 'ht: ', ht(1, 1, 1), ht(5, 3, 2)
       
 !     Build total Hamiltonian
       do i = 1,n
@@ -1392,8 +1451,17 @@
 !     Diagonalise Hamiltonian
 !     print*,'diagonalising intial Hamiltonian'
       ierr = 0
+      !write(6, '(10(1Xf15.5)/)')h
+      
+      write(6, *) h(1, 1), h(5, 3)
       call symevp (h,n,e,ierr)
       if (ierr.ne.0) stop 'hdvr | dgeev 2'
+      write(6, *) h(1, 1), h(5, 3)
+!      write(6, *) hwav(1, 1), hwav(5, 3)
+!      write(6, *) basis(1, 1), basis(5, 4)
+!      stop
+
+      
       if (ntest .eqv. .TRUE.) then
          enn = -0.5d0/dble(ni)**2 + 0.25d0/dist0
          do i = 1,n
@@ -1611,10 +1679,11 @@
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       subroutine flux2(psi,cost,mrflag,voptic,fg2,fl2,vel)
-      use settings, only : nr, nt
       implicit none
       double precision :: vel, fl2, fg2
       integer :: mrflag
+      integer :: nr, nt
+      common /array/ nr,nt
       double complex :: psi(nr,nt)
       double precision :: cost(nt)
       double precision :: voptic(nr)
