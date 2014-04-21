@@ -8,7 +8,7 @@ module settings
   logical, save :: TEST, MPLOT, MEANFIELD ! options
   real(dp), save :: mass
   real(dp), save :: field, v0, dist0, min_pop, timestep
-  integer, save :: nr, nt, nx, npt
+  integer, save :: nt, nx, npt, nr
   real(dp), save :: dk, z, zacc, xmin
   real(dp), parameter :: pi = dacos(-1.d0)
   real(dp), save :: b
@@ -22,6 +22,7 @@ module settings
       NAMELIST/CONTROL/ nStates, TEST, MEANFIELD, MPLOT
       NAMELIST/STATE/ ni, n0, k0
       NAMELIST/ENVIRONMENT/ field, v0
+      NAMELIST/GRID/ nt, dk, z, b, nrb, ntb
             
       OPEN(UNIT=1, FILE='config.info')
       READ(1, NML=CONTROL)
@@ -31,6 +32,7 @@ module settings
       
       READ(1, NML=STATE)
       READ(1, NML=ENVIRONMENT)
+      READ(1, NML=GRID)
 
       CLOSE(1)
       
@@ -44,11 +46,7 @@ module settings
       
       min_pop = 1e-2    ! stop when population less than 'min_pop'
       timestep = 1.0d0  ! timestep
-            
-!     CWDVR parameters (the propagation grid)
-      nt = 20      !no. of cwdvr angular points, can be greater than ntb if desired
-      dk = 3.0d0   !coulomb wave parameter: inc. dk-> 1.more points, 2.smaller sep further out, 3.more even distribution at larger dist
-      z = 50.d0    !inc.  z-> smaller the first grid point  
+      
 
 !     parameters for initial CWDVR grid point search
       zacc = 1.d-8 ! newton-raphson accuracy
@@ -59,13 +57,8 @@ module settings
       
 !     lots more definitions of unclear purpose making this all awefully messy
 
-!     initial diagonalisation grid parameters (regularised Laguerre)
-      b = 0.3d0    ! radial scaling parameter
-      nrb = 40     ! no. of radial points for initial diagonalisation
-      ntb = 20     ! no. of angular points for initial diagonalisation
-
 !     absorbing potential parameters
-      rmid = dist0 !absorbing boundary position on radial grid, AND where flux detector plane sits, it is recommended to set it to dist0
+      rmid = dist0 !absorbing boundary position on radial grid, AND where flux detector plane sits, recommended to set it to dist0
       rabs = 30.d0 !width of absorbing boundary, needs to be wide enough to absorb the lowest energy components
 
 !     outputting parameters
