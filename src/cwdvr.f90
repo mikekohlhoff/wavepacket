@@ -24,38 +24,48 @@
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine main()
-      use settings, only : v0, MEANFIELD, MPLOT, n0, nStates, field, dist0, b, min_pop, timestep, nr, nt, ni, dk, npt, z, rmid, npstep, nfstep, nwstep, nrb, ntb, dp
+      use settings, only : v0, MEANFIELD, MPLOT, n0, nStates, field, dist0, b, min_pop, &
+              timestep, nt, nr, ni, dk, npt, z, rmid, npstep, nfstep, nwstep, nrb, ntb, dp
       use helpers, only : pnorm
       implicit none
       integer, parameter :: nmax = 2000  ! the upper limit of the number of CWDVR radial points
       real(dp) :: r1(nmax)
-
-      real(dp) :: r(nr),a(nr),wt(nr)
+      
+      real(dp), allocatable :: r(:),a(:),wt(:)
       real(dp) :: velacc(nStates)
       real(dp) :: btg(nt,nt),cost(nt)
       real(dp) :: ptg(nt,npt),pcost(npt)
       real(dp) :: hwav(nrb*ntb,nStates)
       real(dp), dimension(:, :), allocatable :: basis
-      complex(dp) psi(nr,nt),etr(nr,nr,nt),ev2(nr,nt)
+      complex(dp), allocatable :: psi(:, :),etr(:, :, :),ev2(:, :)
       character(LEN=17) filen1
       character(LEN=18) filen2
       character(LEN=15) filen3
       character(LEN=8) filen4
       character(LEN=13) filen6
       character(LEN=17) filen5
-      real(dp) :: zx(nr,nt)
-      real(dp) :: voptic(nr)
+      real(dp), allocatable :: zx(:, :), voptic(:)
       real(dp) :: t0, t1, dsecnd
       integer :: i, j, mrflag, istat, nw, istep, ionstep, writstep, plotstep, fstep
       real(dp) :: vel, ptold, dist, dedz, dft, p0, time, pt
       real(dp) :: fg2, fl2, dedzo
       
-      allocate(basis(nr,nrb))
+      
 !     pre stuff that used not to be in main
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !     get CWDVR zeros roughly, by scanning r and finding when the sign of the coulomb function changes
       call couzero(r1,nr,nmax)
+!     we now know the number of zero crossings, and can allocate arrays
+      allocate(r(nr))
+      allocate(a(nr))
+      allocate(wt(nr))
+      allocate(basis(nr,nrb))
+      allocate(psi(nr,nt))
+      allocate(etr(nr,nr,nt))
+      allocate(ev2(nr,nt))
+      allocate(zx(nr,nt))
+      allocate(voptic(nr))
 
       if (MEANFIELD .eqv. .TRUE.) then
          print*,'Calculation with Mean-Field Approx.'
@@ -65,11 +75,16 @@
       print*,'P A R A M E T E R S :'
       print*,'====================='
       write(6,'(A,i5.2,/)')'hydrogen n = ',ni
-      write(6,'(A,/,A,/,A,i5.2,4X,A,f5.2,4X,A,i5.2,/)')'initial diagonalisation with lag DVR:','-------------------------------------','nr = ',nrb,'b = ',b,'nt = ',ntb
+      write(6,'(A,/,A,/,A,i5.2,4X,A,f5.2,4X,A,i5.2,/)')'initial diagonalisation with lag DVR:',&
+                                        '-------------------------------------',&
+                                        'nr = ',nrb,'b = ',b,'nt = ',ntb
 
       write(6,'(A,/,A,/,A,f5.2,4X,A,f5.2,/)')'cwdvr grid parameters:','----------------------','dk = ',dk,'z = ',z
 
-      write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)')'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ',nt,'dt = ',timestep, 'time steps between outputs=',npstep, 'velocity at infinite distance= ',v0,'E-field=',field
+      write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)') & 
+                                        'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ', & 
+                                        nt,'dt = ',timestep, 'time steps between outputs=',npstep, &
+                                        'velocity at infinite distance= ',v0,'E-field=',field
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -352,8 +367,8 @@
                goto 555
             endif
          enddo
-555   endif
-      return
+      endif
+555   return
       end
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -609,7 +624,8 @@
          FC(L) =  FCL
          IF(MODE .EQ. 1) FCP(L)  = FPL
          IF(MODE .NE. 3 .AND. ETANE0) GC(L+1) = RL
-    6 XL = XL - ONE 
+         XL = XL - ONE 
+    6 end do
       IF(FCL .EQ. ZERO) FCL = ACC
       F  = FPL/FCL
 ! ***    NOW WE HAVE REACHED LAMBDA = XLMIN = XLM 
@@ -706,33 +722,34 @@
                       IF(MODE .EQ. 2)           GO TO 12
          GCP(L+1) = GPL
          FCP(L+1) = W*(FCP(L+1) - ALPHA*FC(L+1))
-   12 FC(L+1)     = W* FC(L+1)
+         FC(L+1)     = W* FC(L+1)
+  12  end do
       RETURN
- 1000 FORMAT(/' CF1 ACCURACY LOSS& D,DF,ACCH,K,ETA/K,ETA,X = ',1P7E9.2/)
+ 1000 FORMAT(/' CF1 ACCURACY LOSS& D,DF,ACCH,K,ETA/K,ETA,X = ',1P,7E9.2/)
 !
 ! ***    ERROR MESSAGES
 !
   100 IFAIL = -1
       WRITE(6,2000) XX,ACCH
- 2000 FORMAT(' FOR XX = ',1PE12.3,' TRY SMALL-X  SOLUTIONS',' OR X NEGATIVE',' SQUARE ROOT ACCURACY PARAMETER =  ',E12.3/)
+ 2000 FORMAT(' FOR XX = ',1P,E12.3,' TRY SMALL-X  SOLUTIONS',' OR X NEGATIVE',' SQUARE ROOT ACCURACY PARAMETER =  ',E12.3/)
       RETURN
   105 IFAIL = -2
       WRITE (6,2005) XLMAX,XLMIN,XLM
- 2005 FORMAT(/' PROBLEM WITH INPUT ORDER VALUES&XLMAX,XLMIN,XLM = ',1P3E15.6/)
+ 2005 FORMAT(/' PROBLEM WITH INPUT ORDER VALUES&XLMAX,XLMIN,XLM = ',1P,3E15.6/)
       RETURN
   110 IFAIL =  1
       WRITE (6,2010) ABORT,F ,DF,PK,PX,ACC
- 2010 FORMAT(' CF1 HAS FAILED TO CONVERGE AFTER ',F10.0,' ITERATIONS',' F,DF,PK,PX,ACCUR =  ',1P5E12.3//)
+ 2010 FORMAT(' CF1 HAS FAILED TO CONVERGE AFTER ',F10.0,' ITERATIONS',' F,DF,PK,PX,ACCUR =  ',1P,5E12.3//)
       RETURN
   120 IFAIL =  2
       WRITE (6,2020) ABORT,P,Q,DP,DQ,ACC
- 2020 FORMAT(' CF2 HAS FAILED TO CONVERGE AFTER ',F7.0,' ITERATIONS',' P,Q,DP,DQ,ACCUR =  ',1P4E17.7,E12.3//)
+ 2020 FORMAT(' CF2 HAS FAILED TO CONVERGE AFTER ',F7.0,' ITERATIONS',' P,Q,DP,DQ,ACCUR =  ',1P,4E17.7,E12.3//)
       RETURN
   130 IFAIL =  3
       WRITE (6,2030) P,Q,ACC,DELL,LXTRA,M1
- 2030 FORMAT(' FINAL Q.LE. ABS(P)*ACC*10**4 , P,Q,ACC = ',1P3E12.3,4X,' DELL,LXTRA,M1 = ',E12.3,2I5 /)
+ 2030 FORMAT(' FINAL Q.LE. ABS(P)*ACC*10**4 , P,Q,ACC = ',1P,3E12.3,4X,' DELL,LXTRA,M1 = ',E12.3,2I5 /)
       RETURN
- 2040 FORMAT(' XLMAX - XLMIN = DELL NOT AN INTEGER ',1P3E20.10/)
+ 2040 FORMAT(' XLMAX - XLMIN = DELL NOT AN INTEGER ',1P,3E20.10/)
       END 
       
       
@@ -1082,9 +1099,11 @@
       c=-(field**2)*(xn**4)*(17.d0*(xn**2)-3.d0*(xk**2)-9.d0*(xm**2)+19.d0)/16.d0
       d=(3.d0/32.d0)*(xn**7)*xk*(23.d0*(xn**2)-(xk**2)+11.d0*(xm**2)+39.d0)*(field**3)
       e=-(xn**10)*(field**4)*(5487.d0*(xn**4)+35182.d0*(xn**2)-1134.d0*(xm**2)*(xk**2)+1806.d0*(xn**2)*(xk**2))/1024.d0
-      g=-(xn**10)*(field**4)*(-3402.d0*(xn**2)*(xm**2)+147.d0*(xk**4)-549.d0*(xm**4)+5754.d0*(xk**2)-8622.d0*(xm**2)+16211.d0)/1024.d0
+      g=-(xn**10)*(field**4)* & 
+         (-3402.d0*(xn**2)*(xm**2)+147.d0*(xk**4)-549.d0*(xm**4)+5754.d0*(xk**2)-8622.d0*(xm**2)+16211.d0)/1024.d0
       h=3.d0*(xn**13)*xk*(field**5)*(10563.d0*(xn**4)+90708.d0*(xn**2)+220.d0*(xm**2)*(xk**2)+98.d0*(xn**2)*(xk**2))/1024.d0
-      p=3.d0*(xn**13)*xk*(field**5)*(772.d0*(xn**2)*(xm**2)-21.d0*(xk**4)+725.d0*(xm**4)+780.d0*(xk**2)+830.d0*(xm**2)+59293.d0)/1024.d0
+      p=3.d0*(xn**13)*xk*(field**5)* &
+        (772.d0*(xn**2)*(xm**2)-21.d0*(xk**4)+725.d0*(xm**4)+780.d0*(xk**2)+830.d0*(xm**2)+59293.d0)/1024.d0
       en=a+b+c+d+e+g+h+p
       return
       end
@@ -1168,11 +1187,6 @@
 !
 !     work out f_(i)(x) for i=1,...,nr laguerre basis functions at x(j) (j=1,...,nx) cwdvr points
 !     BAYE REGULARISED LAGUERRE: f_(i)(x)=(-1)^(i)*x_(i)^(-0.5)*x*L_(N)(x)*e^(-x/2)/(x-x_(i))
-      write(6, *) nx, nr
-      write(6, *) trans
-      write(6, *) r
-      write(6, *) x
-      write(6, *) basis
       do j = 1,nx
          do i = 1,nr
             basis(j,i) = ((-1.d0)**i)*trans(j)/(dsqrt(r(i)/b)*(x(j)-r(i))/b)
