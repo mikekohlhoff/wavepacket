@@ -1,0 +1,48 @@
+! nStates : number of states to run calculations for
+! TEST: .TRUE. stops calculation after initial diagonalisation, use this option if you want to find the state number first!
+!       .FALSE. diagonalises and the propagates the wf      
+! MEANFIELD: .TRUE. for meanfield calc, .FALSE. for constant velocity calc
+! MPLOT: output wavefunction for plotting? (note: output files can get big! don't just plot out wf willy nilly!)
+
+&CONTROL
+nStates = 1,
+TEST = .FALSE.,
+MEANFIELD = .TRUE.,
+MPLOT = .FALSE.
+/
+
+! ni : principal quantum number of interest
+! n0 : array indeces of states of interest; determined by TEST=.TRUE. above.
+!      the first state for n=ni is at Sum_1^(ni-1) I think
+! k0 : k-state quantum numbers of interest
+
+&STATE
+ni = 3,
+n0 = 4,
+k0 = -2
+/
+
+! field : electric field
+! v0 : initial velocity of particle (at starting distance)
+
+&ENVIRONMENT
+field = 0.d0,
+v0 = -3d-4
+/
+
+! CWDVR parameters (the propagation grid)
+! nt : no. of cwdvr angular points, can be greater than ntb if desired
+! dk : coulomb wave parameter: inc. dk-> 1.more points, 2.smaller sep further out, 3.more even distribution at larger dist
+! z : inc. z-> smaller the first grid point  
+! initial diagonalisation grid parameters (regularised Laguerre)
+! b : radial scaling parameter
+! nrb : no. of radial points for initial diagonalisation
+! ntb : no. of angular points for initial diagonalisation
+&GRID
+nt = 20
+dk = 3.0d0
+z = 50.d0
+b = 0.3d0
+nrb = 40
+ntb = 20
+/
