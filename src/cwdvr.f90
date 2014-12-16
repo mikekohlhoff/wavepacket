@@ -90,7 +90,7 @@
 
 !     setup
       
-      t0 = dsecnd()           !clear timer
+!      t0 = dsecnd()           !clear timer
       do i = 1,nr             !fill r with the approximate zeroes calculated previously
          r(i) = r1(i)
       enddo
@@ -146,9 +146,9 @@
          endif
 !     
          if (istat.eq.1) then
-            t1 = dsecnd()
-            write (6,61) (t1-t0)/60.d0
-  61        format(/1x,'Setup completed in:',f9.2,' minutes'//1x) 
+!            t1 = dsecnd()
+!            write (6,61) (t1-t0)/60.d0
+!  61        format(/1x,'Setup completed in:',f9.2,' minutes'//1x) 
             print*,'Time....................Population...................Dist'
          endif
 !         
@@ -229,10 +229,10 @@
 !        stop when distance from surface =0
          if (dist < 0.d0) go to 847
          if (pt > min_pop) go to 1
-847      t1 = dsecnd()
-         write (6,63) (t1-t0)/60.d0
-  63     format(/1x,'Propagation took:',f24.2,' minutes')
-         close(100+nw)
+!847      t1 = dsecnd()
+!         write (6,63) (t1-t0)/60.d0
+!  63     format(/1x,'Propagation took:',f24.2,' minutes')
+847      close(100+nw)
          close(200+nw)
          close(300+nw)
          close(400+nw)

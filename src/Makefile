@@ -1,7 +1,7 @@
 EXECUTABLE:= ./../bin/cwdvr
 
 intel: FC = /home/atreju/intel/bin/ifort
-gnu: FC = gfortran-4.8
+gnu: FC = gfortran
 
 F_SRCS := $(wildcard *.f90)
 #F_OBJS := ${F_SRCS:.f90=.o}
@@ -15,7 +15,7 @@ intel: INCLUDE_DIR := -I/home/atreju/intel/mkl/include -I/home/atreju/intel/mkl/
 intel: DEBUGFLAGS = -debug all -check all -warn all -debug-parameters all -traceback
 intel: FLFLAGS = -ipo -lmkl_lapack95_lp64 -lmkl_blas95_lp64 -Wl,--start-group /home/atreju/intel/mkl/lib/intel64/libmkl_intel_lp64.a /home/atreju/intel/mkl/lib/intel64/libmkl_intel_thread.a /home/atreju/intel/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -liomp5 -lpthread
 intel : FCFLAGS = -ipo -xHost -fno-alias -debug -stand f08 -132
-gnu: FCFLAGS = -llapack -lblas -ffast-math -O3 -march=native -std=f2008 -ffree-line-length-none
+gnu: FCFLAGS = -llapack -lblas -ffast-math -O3 -std=f2008 -ffree-line-length-none
 
 .PHONY: all clean distclean
 all: $(EXECUTABLE)
