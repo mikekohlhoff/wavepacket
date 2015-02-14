@@ -1,6 +1,6 @@
 EXECUTABLE:= ./../bin/cwdvr
 
-intel: FC = /home/atreju/intel/bin/ifort
+intel: FC = ifort
 gnu: FC = gfortran
 
 F_SRCS := $(wildcard *.f90)

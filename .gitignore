@@ -1,0 +1,8 @@
+DS_Store
+.DS_Store
+*.sw*
+bin/
+build/
+bin/*
+build/*
+src/*.mod
