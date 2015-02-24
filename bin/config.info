@@ -6,7 +6,7 @@
 
 &CONTROL
 nStates = 1,
-TEST = .TRUE.,
+TEST = .FALSE.,
 MEANFIELD = .TRUE.,
 MPLOT = .FALSE.
 /
