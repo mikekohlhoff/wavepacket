@@ -35,9 +35,11 @@ module settings
       READ(1, NML=GRID)
 
       CLOSE(1)
-      
+        
+      print*,'----------------------------------------------------------------------------------'
       write(6, *) 'velocity: ', v0
       write(6, *) 'field: ', field
+      print*,'---------------------------------------'
       
       ! parameters not (yet) in the config file
       dist0 = 6.d0*ni**2  ! initial distance to start propagation (where the initial diagonalisation is carried out)

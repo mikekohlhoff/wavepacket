@@ -45,7 +45,8 @@
       character(LEN=13) filen6
       character(LEN=17) filen5
       real(dp), allocatable :: zx(:, :), voptic(:)
-      real(dp) :: t0, t1, dsecnd
+      integer :: t0, t1, clkrate
+      real(dp) :: elapt
       integer :: i, j, mrflag, istat, nw, istep, ionstep, writstep, plotstep, fstep
       real(dp) :: vel, ptold, dist, dedz, dft, p0, time, pt
       real(dp) :: fg2, fl2, dedzo
@@ -72,16 +73,17 @@
       else
          print*,'Calculation with Constant Velocity Approx'
       endif
-      print*,'P A R A M E T E R S :'
+      print*,'---------------------------------------'
+      print*,'Parameters:'
       print*,'====================='
       write(6,'(A,i5.2,/)')'hydrogen n = ',ni
-      write(6,'(A,/,A,/,A,i5.2,4X,A,f5.2,4X,A,i5.2,/)')'initial diagonalisation with lag DVR:',&
+      write(6,'(A,/,A,/,A,i5.2,/,A,f5.2,/,A,i5.2,/)')'initial diagonalisation with lag DVR:',&
                                         '-------------------------------------',&
                                         'nr = ',nrb,'b = ',b,'nt = ',ntb
 
-      write(6,'(A,/,A,/,A,f5.2,4X,A,f5.2,/)')'cwdvr grid parameters:','----------------------','dk = ',dk,'z = ',z
+      write(6,'(A,/,A,/,A,f5.2,/,A,f5.2,/)')'cwdvr grid parameters:','----------------------','dk = ',dk,'z = ',z
 
-      write(6,'(A,/,A,/,A,i5.2,4X,A,i5.2,4X,A,f5.2,4X,A,i5.2,4X,A,f5.2,4X,A,f5.2/)') & 
+      write(6,'(A,/,A,/,A,i5.2,/,A,i5.2,/,A,f5.2,/,A,i5.2,/,A,f5.2,/,A,f5.2/)') & 
                                         'wpp:','----','number of cwdvr pts = ',nr,'angular points nt = ', & 
                                         nt,'dt = ',timestep, 'time steps between outputs=',npstep, &
                                         'velocity at infinite distance= ',v0,'E-field=',field
@@ -90,7 +92,7 @@
 
 !     setup
       
-!      t0 = dsecnd()           !clear timer
+      call system_clock(t0, clkrate)           !clear timer
       do i = 1,nr             !fill r with the approximate zeroes calculated previously
          r(i) = r1(i)
       enddo
@@ -146,9 +148,9 @@
          endif
 !     
          if (istat.eq.1) then
-!            t1 = dsecnd()
-!            write (6,61) (t1-t0)/60.d0
-!  61        format(/1x,'Setup completed in:',f9.2,' minutes'//1x) 
+            call system_clock(t1, clkrate)
+            write (6,61) (t1-t0)/clkrate/60.d0
+  61        format(/1x,'Setup completed in:',f9.2,' minutes'//1x) 
             print*,'Time....................Population...................Dist'
          endif
 !         
@@ -229,10 +231,10 @@
 !        stop when distance from surface =0
          if (dist < 0.d0) go to 847
          if (pt > min_pop) go to 1
-!847      t1 = dsecnd()
-!         write (6,63) (t1-t0)/60.d0
-!  63     format(/1x,'Propagation took:',f24.2,' minutes')
-847      close(100+nw)
+847      call system_clock(t1, clkrate)
+         write (6,61) (t1-t0)/clkrate/60.d0
+  63     format(/1x,'Propagation took:',f24.2,' minutes')
+         close(100+nw)
          close(200+nw)
          close(300+nw)
          close(400+nw)
@@ -1454,7 +1456,7 @@
          r(i) = r(i)*b
       enddo
       write(6,'(A,i9.2)')'initial diagonalisation nr = ',n
-      write(6,'(A,f9.2)')'initial diagonalisation grid rmax = ',r(n)
+      write(6,'(A,f9.2,/)')'initial diagonalisation grid rmax = ',r(n)
       return
       end
 
