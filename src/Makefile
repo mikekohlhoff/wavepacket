@@ -14,13 +14,18 @@ intel: INCLUDE_DIR := -I/opt/intel/mkl/include -I/opt/intel/mkl/include/intel64/
 
 intel: DEBUGFLAGS = -debug all -check all -warn all -debug-parameters all -traceback
 intel: FLFLAGS = -ipo -lmkl_lapack95_lp64 -lmkl_blas95_lp64 -Wl,--start-group /opt/intel/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -liomp5 -lpthread
-intel : FCFLAGS = -ipo -xHost -fno-alias -debug -stand f08 -132
+# AT: 
+# intel : FCFLAGS = -ipo -xHost -fno-alias -debug -stand f08 -132
+# try speed up (linux)
+# fast = -ipo, -O3, -no-prec-div, -static, and -xHost
+intel : FCFLAGS = -ipo -xHost -O3 -no-prec-div -ftz -ip -march=native -parallel -openmp -fno-alias -stand f08 -132 -complex-limited-range
+intel : FCFLAGS = -ipo -xHost -fno-alias -debug -stand f08 -132 -O2 -march=corei7-avx -complex-limited-range -ip
 gnu: FCFLAGS = -llapack -lblas -ffast-math -O3 -std=f2008 -ffree-line-length-none
 
 .PHONY: all clean distclean
-all: $(EXECUTABLE)
-intel : $(EXECUTABLE)
-gnu : $(EXECUTABLE)
+all:	$(EXECUTABLE)
+intel:	$(EXECUTABLE)
+gnu:	$(EXECUTABLE)
 
 $(EXECUTABLE) : $(OBJS)
 	$(FC) $^ $(LIBRARY_DIR) $(INCLUDE_DIR) $(FLFLAGS) $(FCFLAGS) -o $(EXECUTABLE)
