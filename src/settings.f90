@@ -29,7 +29,7 @@ module settings
       
       allocate(n0(nStates))
       allocate(k0(nStates))
-      
+
       READ(1, NML=STATE)
       READ(1, NML=ENVIRONMENT)
       READ(1, NML=GRID)

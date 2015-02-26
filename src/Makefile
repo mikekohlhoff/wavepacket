@@ -18,7 +18,7 @@ intel: FLFLAGS = -ipo -lmkl_lapack95_lp64 -lmkl_blas95_lp64 -Wl,--start-group /o
 # intel : FCFLAGS = -ipo -xHost -fno-alias -debug -stand f08 -132
 # try speed up (linux)
 # fast = -ipo, -O3, -no-prec-div, -static, and -xHost
-intel : FCFLAGS = -ipo -xHost -O3 -no-prec-div -ftz -ip -march=native -parallel -openmp -fno-alias -stand f08 -132 -complex-limited-range
+#intel : FCFLAGS = -ipo -xHost -O3 -no-prec-div -ftz -ip -march=native -parallel -openmp -fno-alias -stand f08 -132 -complex-limited-range
 intel : FCFLAGS = -ipo -xHost -fno-alias -debug -stand f08 -132 -O2 -march=corei7-avx -complex-limited-range -ip
 gnu: FCFLAGS = -llapack -lblas -ffast-math -O3 -std=f2008 -ffree-line-length-none
 
