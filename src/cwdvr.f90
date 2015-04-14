@@ -129,20 +129,20 @@
          endif
 !         
 !     open files for output
-         write(filen1,'(A,i4.4)')'forward_flux.',nw
-         write(filen2,'(A,i4.4)')'backward_flux.',nw
-         write(filen4,'(A,i4.4)')'pop.',nw
+         write(filen1,'(A,i2.2)')'forward_flux.',nw
+         write(filen2,'(A,i2.2)')'backward_flux.',nw
+         write(filen4,'(A,i2.2)')'pop.',nw
          open(100+nw,file=filen1,status='unknown')
          open(200+nw,file=filen2,status='unknown')
          open(400+nw,file=filen4,status='unknown')
          if (MPLOT .eqv. .TRUE.) then
-            write(filen5,'(A,i4.4)')'wavefunction.',nw
+            write(filen5,'(A,i2.2)')'wavefunction.',nw
             open(500+nw,file=filen5,status='unknown')
             write(500+nw,*) nr,npt,timestep*npstep,rmid
          endif
          if (MEANFIELD .eqv. .TRUE.) then
-            write(filen3,'(A,i4.4)')'totalforce.',nw
-            write(filen6,'(A,i4.4)')'velocity.',nw
+            write(filen3,'(A,i2.2)')'totalforce.',nw
+            write(filen6,'(A,i2.2)')'velocity.',nw
             open(300+nw,file=filen3,status='unknown')
             open(600+nw,file=filen6,status='unknown')
          endif

@@ -8,7 +8,7 @@
 nStates = 1,
 TEST = .FALSE.,
 MEANFIELD = .TRUE.,
-MPLOT = .FALSE.
+MPLOT = .TRUE.
 /
 
 ! ni : principal quantum number of interest
