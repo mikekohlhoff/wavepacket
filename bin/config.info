@@ -6,7 +6,10 @@
 
 &CONTROL
 nStates = 1,
+!test for finding right state number
 TEST = .FALSE.,
+!one time run for wf check
+TESTWF = .FALSE.,
 MEANFIELD = .TRUE.,
 MPLOT = .TRUE.
 /
@@ -17,9 +20,9 @@ MPLOT = .TRUE.
 ! k0 : k-state quantum numbers of interest
 
 &STATE
-ni = 3,
-n0 = 4,
-k0 = -2
+ni = 5,
+n0 = 15,
+k0 = 4
 /
 
 ! field : electric field
@@ -28,6 +31,7 @@ k0 = -2
 &ENVIRONMENT
 field = 0.d0,
 v0 = -3d-4
+dist0 = 6.d0 ! initial distance to start propagation (where the initial diagonalisation is carried out) scaled in settings file
 /
 
 ! CWDVR parameters (the propagation grid)
@@ -39,10 +43,10 @@ v0 = -3d-4
 ! nrb : no. of radial points for initial diagonalisation
 ! ntb : no. of angular points for initial diagonalisation
 &GRID
-nt = 20
+nt = 40
 dk = 3.0d0
 z = 50.d0
-b = 0.3d0
-nrb = 40
-ntb = 20
+b = 0.4d0
+nrb = 60
+ntb = 40
 /
