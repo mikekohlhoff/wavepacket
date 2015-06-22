@@ -80,6 +80,7 @@ module surface
 !      endif
 !      
 !     electron-image electron attraction
+!     uncomment for Chulkov
       if (zz.gt.z0) then
        vee = 0.25d0*(-1.d0+dexp(-beta*(zz-z0)))/(zz-z0)
       else

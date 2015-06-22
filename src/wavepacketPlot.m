@@ -67,9 +67,9 @@ w2 = reshape(w2,nx,ny,[]);
 h2 = pcolor([x;flipud(-x);x(1,:)],[y;flipud(y);y(1,:)],...
     [w2(:,:,1);flipud(w2(:,:,1));w2(1,:,1)]);hold on;shading interp; %plot wf
 
-plot(abx,aby,'y:','linewidth',1.5); % plot absorbing boundary
+%plot(abx,aby,'y:','linewidth',1.5); % plot absorbing boundary
 
-plot(gridx,gridy,'b','linewidth',1.5); %plot grid edge
+%plot(gridx,gridy,'b','linewidth',1.5); %plot grid edge
 
 wall = patch([-rmax,-rmax,rmax,rmax],[-rmax,-dd(1),-dd(1),-rmax],[1 1 1],...
     'facealpha',0.5,'edgecolor','none'); % plot surface

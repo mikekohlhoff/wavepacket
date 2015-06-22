@@ -1,0 +1,6 @@
+# grid parameters for initial diagonalization and wpp for different quantum number for jellium potential
+
+
+
+n=5
+
