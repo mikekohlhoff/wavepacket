@@ -40,6 +40,4 @@ clean:
 	rm -f *.mod
 	rm -f *__genmod*
 
-
 distclean: clean
-

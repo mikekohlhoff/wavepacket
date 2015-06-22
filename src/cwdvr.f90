@@ -25,7 +25,7 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine main()
       use settings, only : v0, MEANFIELD, MPLOT, n0, nStates, field, dist0, b, min_pop, &
-              timestep, nt, nr, ni, dk, npt, z, rmid, npstep, nfstep, nwstep, nrb, ntb, dp
+              timestep, nt, nr, ni, dk, npt, z, rmid, npstep, nfstep, nwstep, nrb, ntb, dp, TEST, TESTWF
       use helpers, only : pnorm
       implicit none
       integer, parameter :: nmax = 2000  ! the upper limit of the number of CWDVR radial points
@@ -230,7 +230,7 @@
 !
 !        stop when distance from surface =0
          if (dist < 0.d0) go to 847
-         if (pt > min_pop) go to 1
+         if ((pt > min_pop) .AND. .NOT.TESTWF)  go to 1
 847      call system_clock(t1, clkrate)
          write (6,61) (t1-t0)/clkrate/60.d0
   63     format(/1x,'Propagation took:',f24.2,' minutes')
@@ -1161,7 +1161,7 @@
 !     cost(nt) are the ang points for initial diagonalisation and cost(ntcw) and those for propagation
 !--------------------------------------------------------------------------
       
-      integer :: nx, ntcw, nr,  nt
+      integer :: nx, ntcw, nr, nt
       real(dp) :: btg(nt,nt),cost(nt),cent(nt)
       real(dp) :: pbtg(ntcw,ntcw),ptg(nt,ntcw)
       real(dp) :: r(nr),hr(nr,nr)
@@ -1267,6 +1267,8 @@
       call symevp (h,n,e,ierr)
       if (ierr.ne.0) stop 'hdvr | dgeev 2'
       if (TEST .eqv. .TRUE.) then
+         print*,'picked k states'
+         print*,'--------------'
          enn = -0.5d0/dble(ni)**2 + 0.25d0/dist0
          do i = 1,n
             ei = e(i)!*4.35974417d-18/1.60218d-19
@@ -1280,6 +1282,7 @@
          enddo
          stop
       endif
+      
 !     store selection of wavefunctions (eigenvectors)
       do istat = 1,nStates
          nwav = n0(istat)

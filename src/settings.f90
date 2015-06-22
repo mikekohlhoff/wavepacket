@@ -5,7 +5,7 @@ module settings
   integer, save :: ni     ! quantum number of interest
   integer, allocatable, save :: n0(:)
   integer, allocatable, save :: k0(:)
-  logical, save :: TEST, MPLOT, MEANFIELD ! options
+  logical, save :: TEST, TESTWF, MPLOT, MEANFIELD ! options
   real(dp), save :: mass
   real(dp), save :: field, v0, dist0, min_pop, timestep
   integer, save :: nt, nx, npt, nr
@@ -19,9 +19,9 @@ module settings
 
   contains
     subroutine loadSettings()
-      NAMELIST/CONTROL/ nStates, TEST, MEANFIELD, MPLOT
+      NAMELIST/CONTROL/ nStates, TEST, TESTWF, MEANFIELD, MPLOT
       NAMELIST/STATE/ ni, n0, k0
-      NAMELIST/ENVIRONMENT/ field, v0
+      NAMELIST/ENVIRONMENT/ field, v0, dist0
       NAMELIST/GRID/ nt, dk, z, b, nrb, ntb
             
       OPEN(UNIT=1, FILE='config.info')
@@ -35,15 +35,16 @@ module settings
       READ(1, NML=GRID)
 
       CLOSE(1)
-        
+      
+      ! initial distance scaled by orbital radius
+      dist0 = dist0*ni**2
       print*,'----------------------------------------------------------------------------------'
-      write(6, *) 'velocity: ', v0
-      write(6, *) 'field: ', field
+      write(6, '(A,f9.6,/)') 'velocity: ', v0
+      write(6, '(A,f9.6,/)') 'field: ', field
+      write(6, '(A,f9.2,/)') 'initial distance: ', dist0
       print*,'---------------------------------------'
       
       ! parameters not (yet) in the config file
-      dist0 = 6.d0*ni**2  ! initial distance to start propagation (where the initial diagonalisation is carried out)
-      
       mass = 1836.d0    ! mass of ion core
       
       min_pop = 1e-2    ! stop when population less than 'min_pop'
