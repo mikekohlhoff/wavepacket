@@ -3,12 +3,16 @@
 !       .FALSE. diagonalises and the propagates the wf      
 ! MEANFIELD: .TRUE. for meanfield calc, .FALSE. for constant velocity calc
 ! MPLOT: output wavefunction for plotting? (note: output files can get big! don't just plot out wf willy nilly!)
+! placeholder \dollarsign{x}for template in forloop.py has to be adopted to intended scan
 
 &CONTROL
 nStates = 1,
-TEST = .TRUE.,
-MEANFIELD = .TRUE.,
-MPLOT = .FALSE.
+!test for finding right state number
+TEST = .FALSE.,
+!one time run for wf check
+TESTWF = .FALSE.,
+MEANFIELD = .FALSE.,
+MPLOT = .TRUE.
 /
 
 ! ni : principal quantum number of interest
@@ -17,32 +21,37 @@ MPLOT = .FALSE.
 ! k0 : k-state quantum numbers of interest
 
 &STATE
-ni = 3,
-n0 = 4,
-k0 = -2
+ni = 5,
+n0 = 11,
+k0 = -4
 /
 
-! field : electric field
+! field : electric field to extract ions
 ! v0 : initial velocity of particle (at starting distance)
 
 &ENVIRONMENT
-field = 0.d0,
-v0 = -3d-4
+field = 0.d0
+v0 = ${v}
+! initial distance to start propagation (where the initial diagonalisation is carried out) scaled in settings file
+! 'standard' for former calculations 6n^2
+dist0 = 6.d0
 /
 
 ! CWDVR parameters (the propagation grid)
 ! nt : no. of cwdvr angular points, can be greater than ntb if desired
 ! dk : coulomb wave parameter: inc. dk-> 1.more points, 2.smaller sep further out, 3.more even distribution at larger dist
-! z : inc. z-> smaller the first grid point  
+! z : inc. z-> smaller the first grid point, not much effect
 ! initial diagonalisation grid parameters (regularised Laguerre)
-! b : radial scaling parameter
-! nrb : no. of radial points for initial diagonalisation
+! b : RADIAL scaling parameter, spacing for zeroes
+! nrb : no. of RADIAL points for initial diagonalisation
 ! ntb : no. of angular points for initial diagonalisation
+
 &GRID
-nt = 20
+nt = 40
 dk = 3.0d0
 z = 50.d0
-b = 0.3d0
-nrb = 40
-ntb = 20
+
+b = 0.4d0
+nrb = 60
+ntb = 60
 /

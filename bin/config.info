@@ -8,7 +8,7 @@
 &CONTROL
 nStates = 1,
 !test for finding right state number
-TEST = .TRUE.,
+TEST = .FALSE.,
 !one time run for wf check
 TESTWF = .FALSE.,
 MEANFIELD = .FALSE.,
@@ -22,8 +22,8 @@ MPLOT = .TRUE.
 
 &STATE
 ni = 5,
-n0 = 15,
-k0 = 4
+n0 = 11,
+k0 = -4
 /
 
 ! field : electric field to extract ions
@@ -31,7 +31,8 @@ k0 = 4
 
 &ENVIRONMENT
 field = 0.d0
-v0 = ${v}
+!v0 = ${v}
+v0 = -3d-4
 ! initial distance to start propagation (where the initial diagonalisation is carried out) scaled in settings file
 ! 'standard' for former calculations 6n^2
 dist0 = 6.d0
@@ -47,7 +48,7 @@ dist0 = 6.d0
 ! ntb : no. of angular points for initial diagonalisation
 
 &GRID
-nt = 40
+nt = 60
 dk = 3.0d0
 z = 50.d0
 
