@@ -8,6 +8,7 @@ import shutil
 import threading
 import time
 import math
+import time
 
 # Loop through a range of one variable (likely to be velocity), creating an input file for each and
 # execute CWDVR. The script limits the number of concurrently executing CWDVR
@@ -15,8 +16,10 @@ import math
 
 # conversion vel in atomic units to m/s
 v_hatree = 2.1876912633E6
-v_step = 1000
-v_vals = (arange(v_step,3000+1,v_step)*-1*math.sin(20)/v_hatree)
+v_step = 400
+v_vals = (arange(v_step,3200+1,v_step)*-1*math.sin(20)/v_hatree)
+print(arange(v_step,3200+1,v_step))
+time.sleep(3)
 v_vals = (('%e' % i).replace('e', 'd') for i in v_vals)
 
 # Base path is the directory in which each sub-directory is created. Run path
@@ -34,7 +37,7 @@ config_file = r'config.info'
 cwdvr_command = os.path.abspath(r'./cwdvr')
 # ccmd_command = os.path.expanduser(ccmd_command)
 # TPS7/8 have 8 cores with max 2 threads
-max_threads = 16
+max_threads = 4
 
 #======================================================================
 

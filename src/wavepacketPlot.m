@@ -13,10 +13,42 @@ clear; clc; clf
 % Threshold for plotting wavefunction {0,1}
 limc = 0.9;
 
-%%
+% colormap
+nn = 64;
+assert(isscalar(nn)==1,'paruly input must be a scalar.') 
+C = load('parulynomials.mat'); 
+
+x = linspace(0,1,nn)'; 
+
+r = polyval(C.R,x);
+g = polyval(C.G,x);
+b = polyval(C.B,x);
+
+% Clamp: 
+r(r<0)=0; 
+g(g<0)=0; 
+b(b<0)=0; 
+r(r>1)=1; 
+g(g>1)=1; 
+b(b>1)=1; 
+
+cmap = [r g b];
+cmap(1,:) = [0 0 0];
+
+params = wf(1,:);
+wf = wf(2:end,:);
+
 % Load in the wavefunction
-[FileName,PathName] = uigetfile('wavefunction.*','Select the wavefunction file','*');
-wf = load([PathName FileName]);
+if exist('wavefunction.mat', 'file') == 0
+    fprintf('\n'), display('Reading in wavefunction file ...')
+    [FileName,PathName] = uigetfile('wavefunction.*','Select the wavefunction file','*');
+    wf = load([PathName FileName]);
+    % save as matlab binary
+    save('wavefunction.mat', '-mat', 'wf', '-v7.3');
+else
+   load('wavefunction.mat')
+end
+
 params = wf(1,:);
 wf = wf(2:end,:);
 
@@ -106,8 +138,8 @@ uiwait(gcf);
 iback = 0; ibreak = 0; it = 0;
 while iback == 0
     it = it +1;
-    if it > nt
-        uiwait(gcf);
+    %if it > nt
+    %    uiwait(gcf);
     else
         dist = dd(it);
         

@@ -12,7 +12,7 @@ TEST = .FALSE.,
 !one time run for wf check
 TESTWF = .FALSE.,
 MEANFIELD = .FALSE.,
-MPLOT = .TRUE.
+MPLOT = .FALSE.
 /
 
 ! ni : principal quantum number of interest
