@@ -31,8 +31,7 @@ k0 = -4
 
 &ENVIRONMENT
 field = 0.d0
-!v0 = ${v}
-v0 = -3d-4
+v0 = ${v}
 ! initial distance to start propagation (where the initial diagonalisation is carried out) scaled in settings file
 ! 'standard' for former calculations 6n^2
 dist0 = 6.d0

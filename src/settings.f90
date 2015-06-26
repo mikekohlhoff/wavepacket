@@ -47,7 +47,8 @@ module settings
       ! parameters not (yet) in the config file
       mass = 1836.d0    ! mass of ion core
       
-      min_pop = 1e-2    ! stop when population less than 'min_pop'
+      min_pop = 1e-3    ! stop when population less than 'min_pop', E-2 leaves
+                        ! quite big gap in plot
       timestep = 1.0d0  ! timestep
       
 
